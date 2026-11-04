@@ -92,6 +92,17 @@ jobs:
           mkdir -p dist-bins
           cp "target/${{ matrix.target }}/release/${{ matrix.exe }}" "dist-bins/${{ matrix.asset }}"
 
+      # Each runner is native to its target, so this executes every binary
+      # (including Windows and Linux arm64) on real hardware of that architecture.
+      - name: Smoke-test the binary on its own architecture
+        run: |
+          bin="target/${{ matrix.target }}/release/${{ matrix.exe }}"
+          "$bin" --version
+          "$bin" --json > smoke.json
+          "$bin" --png smoke.png
+          test -s smoke.png
+          head -c 160 smoke.json; echo
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
