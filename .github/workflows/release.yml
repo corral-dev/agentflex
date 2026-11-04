@@ -149,9 +149,19 @@ jobs:
       - name: Assemble npm packages
         run: node scripts/build-npm.mjs --version "${GITHUB_REF_NAME#v}" --bin-dir bins
 
+      # Platform packages first, the launcher last, so the launcher never points
+      # at versions that are not on the registry. Versions already published
+      # (for example by an interrupted run) are skipped, so reruns are safe.
+      # Windows packages are named `windows-*`: names containing `win32` are
+      # rejected by npm's spam detection (verified 2026-11-04).
       - name: Publish to npm
         run: |
-          for pkg in agentflex agentflex-darwin-arm64 agentflex-darwin-x64 agentflex-linux-x64 agentflex-linux-arm64 agentflex-win32-x64 agentflex-win32-arm64; do
+          version="${GITHUB_REF_NAME#v}"
+          for pkg in agentflex-darwin-arm64 agentflex-darwin-x64 agentflex-linux-x64 agentflex-linux-arm64 agentflex-windows-x64 agentflex-windows-arm64 agentflex; do
+            if npm view "$pkg@$version" version >/dev/null 2>&1; then
+              echo "skip $pkg@$version (already published)"
+              continue
+            fi
             npm publish --provenance --access public "npm/dist/$pkg"
           done
         env:

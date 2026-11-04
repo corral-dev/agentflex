@@ -37,8 +37,8 @@ const PLATFORMS = {
     x64: { package: "agentflex-linux-x64", file: "bin/agentflex" },
   },
   win32: {
-    arm64: { package: "agentflex-win32-arm64", file: "bin/agentflex.exe" },
-    x64: { package: "agentflex-win32-x64", file: "bin/agentflex.exe" },
+    arm64: { package: "agentflex-windows-arm64", file: "bin/agentflex.exe" },
+    x64: { package: "agentflex-windows-x64", file: "bin/agentflex.exe" },
   },
 };
 

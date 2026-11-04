@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/corral-dev/agentflex#readme",
   "bin": {
-    "agentflex": "./bin/agentflex.js"
+    "agentflex": "bin/agentflex.js"
   },
   "files": [
     "bin/",
@@ -20,8 +20,8 @@
     "agentflex-darwin-x64": "0.0.0-dev",
     "agentflex-linux-arm64": "0.0.0-dev",
     "agentflex-linux-x64": "0.0.0-dev",
-    "agentflex-win32-arm64": "0.0.0-dev",
-    "agentflex-win32-x64": "0.0.0-dev"
+    "agentflex-windows-arm64": "0.0.0-dev",
+    "agentflex-windows-x64": "0.0.0-dev"
   },
   "engines": {
     "node": ">=18"

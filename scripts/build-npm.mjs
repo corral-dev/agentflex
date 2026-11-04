@@ -44,8 +44,8 @@ const TARGETS = [
   { target: "x86_64-apple-darwin", pkg: "agentflex-darwin-x64", os: "darwin", cpu: "x64", bin: "agentflex" },
   { target: "aarch64-unknown-linux-musl", pkg: "agentflex-linux-arm64", os: "linux", cpu: "arm64", bin: "agentflex" },
   { target: "x86_64-unknown-linux-musl", pkg: "agentflex-linux-x64", os: "linux", cpu: "x64", bin: "agentflex" },
-  { target: "aarch64-pc-windows-msvc", pkg: "agentflex-win32-arm64", os: "win32", cpu: "arm64", bin: "agentflex.exe" },
-  { target: "x86_64-pc-windows-msvc", pkg: "agentflex-win32-x64", os: "win32", cpu: "x64", bin: "agentflex.exe" },
+  { target: "aarch64-pc-windows-msvc", pkg: "agentflex-windows-arm64", os: "win32", cpu: "arm64", bin: "agentflex.exe" },
+  { target: "x86_64-pc-windows-msvc", pkg: "agentflex-windows-x64", os: "win32", cpu: "x64", bin: "agentflex.exe" },
 ];
 
 const USAGE = `usage: node scripts/build-npm.mjs [--version X.Y.Z] [--bin-dir DIR] [--out-dir npm/dist]
