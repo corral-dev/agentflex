@@ -141,8 +141,9 @@ def codex_response(ts: float, text: str = "done") -> dict:
 
 
 def codex_user(ts: float, text: str = "do the task") -> dict:
+    # native shape per parsers/codex.py::user_message_text: payload.message
     return {"type": "event_msg", "timestamp": rfc3339(ts),
-            "payload": {"type": "user_message", "text": text}}
+            "payload": {"type": "user_message", "message": text}}
 
 
 def codex_turn_record(ts: float, turn: str | None, resp: str | None,
