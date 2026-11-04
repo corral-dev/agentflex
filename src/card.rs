@@ -85,6 +85,8 @@ pub struct View {
     pub busiest: Option<(usize, usize)>,
     /// (done, total) while reading; total < 0 while scanning.
     pub progress: Option<(usize, i64)>,
+    /// No session in the period: the hero explains instead of showing zeros.
+    pub empty: bool,
 }
 
 pub fn compact(value: f64) -> String {
@@ -152,6 +154,7 @@ pub fn build_view(stats: &CardStats, period: Period, peak_label: String, progres
         heat: heat_levels(&stats.heatmap),
         busiest: stats.busiest(),
         progress,
+        empty: progress.is_none() && stats.sessions == 0,
     }
 }
 
@@ -224,7 +227,7 @@ fn border_char(x: usize, y: usize) -> char {
 /// (upper/lower half block), so pixels are square; 8 pixel rows = 4 cells.
 fn glyph(ch: char) -> &'static [&'static str] {
     match ch {
-        '0' => &[".####.", "##..##", "##.###", "######", "###.##", "##..##", ".####."],
+        '0' => &[".####.", "##..##", "##..##", "##..##", "##..##", "##..##", ".####."],
         '1' => &["..##..", ".###..", "..##..", "..##..", "..##..", "..##..", ".####."],
         '2' => &[".####.", "##..##", "....##", "...##.", "..##..", ".##...", "######"],
         '3' => &[".####.", "##..##", "....##", "..###.", "....##", "##..##", ".####."],
@@ -346,6 +349,12 @@ fn draw_title(grid: &mut Grid, view: &View, t: Option<f64>) {
 }
 
 fn draw_hero(grid: &mut Grid, view: &View, t: Option<f64>, loading_t: Option<f64>, idle_t: Option<f64>) {
+    if view.empty && loading_t.is_none() {
+        put(grid, HERO_X, HERO_Y + 1, "No Claude Code, Codex, OpenCode or Pi sessions", TEXT, true);
+        let tail = format!("found in the {}.", view.period_label);
+        put(grid, HERO_X, HERO_Y + 2, &tail, DIM, false);
+        return;
+    }
     let text: String = view.hero.clone();
     let layout = hero_layout(&text);
     let width = hero_width(&text).max(1);
@@ -624,6 +633,20 @@ mod tests {
     #[test]
     fn hero_fits_inside_the_card() {
         assert!(HERO_X + hero_width("888.88B") + 10 < WIDTH);
+    }
+
+    #[test]
+    fn empty_period_explains_instead_of_zeros() {
+        let v = build_view(&CardStats::default(), Period::Week, String::new(), None);
+        let t = text(&compose(&v, None, None, None));
+        assert!(t.contains("No Claude Code, Codex, OpenCode or Pi sessions"));
+        assert!(t.contains("found in the last 7 days."));
+        assert!(!t.contains("tokens"));
+    }
+
+    #[test]
+    fn zero_glyph_is_hollow() {
+        assert_eq!(glyph('0')[3], "##..##");
     }
 
     #[test]
