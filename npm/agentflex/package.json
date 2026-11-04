@@ -1,0 +1,29 @@
+{
+  "name": "agentflex",
+  "version": "0.0.0-dev",
+  "description": "Animated, shareable card of your coding-agent week (terminal + PNG export)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corral-dev/agentflex.git"
+  },
+  "homepage": "https://github.com/corral-dev/agentflex#readme",
+  "bin": {
+    "agentflex": "./bin/agentflex.js"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "optionalDependencies": {
+    "agentflex-darwin-arm64": "0.0.0-dev",
+    "agentflex-darwin-x64": "0.0.0-dev",
+    "agentflex-linux-arm64": "0.0.0-dev",
+    "agentflex-linux-x64": "0.0.0-dev",
+    "agentflex-win32-arm64": "0.0.0-dev",
+    "agentflex-win32-x64": "0.0.0-dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

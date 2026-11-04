@@ -1,0 +1,49 @@
+# Continuous integration: build + test on all three OSes for pushes and PRs.
+# Tag pushes are excluded (the release workflow covers those).
+# Same side-by-side checkout as release.yml so the
+# `../SessKit/crates/sesskit-stats` path dependency resolves.
+name: ci
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04, windows-latest]
+    defaults:
+      run:
+        working-directory: AgentFlex
+        shell: bash
+    steps:
+      - name: Check out AgentFlex
+        uses: actions/checkout@v4
+        with:
+          path: AgentFlex
+
+      - name: Check out SessKit (path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: x0c/sesskit
+          path: SessKit
+
+      - name: Build
+        run: cargo build
+
+      - name: Test
+        run: cargo test
+
+      - name: Check packaging script
+        run: |
+          node --check scripts/build-npm.mjs
+          node scripts/build-npm.mjs --help

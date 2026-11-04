@@ -1,0 +1,147 @@
+# Builds the agentflex Rust binary for six targets and publishes the npm
+# platform packages on version tags.
+#
+# Layout note: AgentFlex depends on sesskit-stats via
+# `path = "../SessKit/crates/sesskit-stats"`, so both repositories are
+# checked out side by side ($GITHUB_WORKSPACE/AgentFlex +
+# $GITHUB_WORKSPACE/SessKit) and every cargo step runs with
+# working-directory AgentFlex.
+#
+# Linux choice: x86_64/aarch64-unknown-linux-musl targets produce fully
+# static binaries (musl libc linked in, no glibc dependency), so the same
+# artifact runs on any distro regardless of the runner's glibc version.
+# Native runners are used for every target (macos-14 = arm64, macos-13 =
+# x64, ubuntu-24.04-arm = arm64, windows-11-arm = arm64) instead of
+# cross-compilation, avoiding cross toolchains and emulation.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# `id-token: write` is required for `npm publish --provenance` (Sigstore).
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            exe: agentflex
+            asset: aarch64-apple-darwin
+          # NOTE: macos-13 (last Ventura x64 label) is retired on GitHub-hosted
+          # runners (actionlint: unknown label); macos-15-intel is the
+          # current x64 macOS runner.
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            exe: agentflex
+            asset: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            exe: agentflex
+            asset: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            exe: agentflex
+            asset: aarch64-unknown-linux-musl
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe: agentflex.exe
+            asset: x86_64-pc-windows-msvc.exe
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            exe: agentflex.exe
+            asset: aarch64-pc-windows-msvc.exe
+    defaults:
+      run:
+        working-directory: AgentFlex
+        shell: bash
+    steps:
+      - name: Check out AgentFlex
+        uses: actions/checkout@v4
+        with:
+          path: AgentFlex
+
+      - name: Check out SessKit (path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: x0c/sesskit
+          path: SessKit
+
+      - name: Install musl tools (Linux static builds)
+        if: endsWith(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Stage binary under canonical name
+        run: |
+          mkdir -p dist-bins
+          cp "target/${{ matrix.target }}/release/${{ matrix.exe }}" "dist-bins/${{ matrix.asset }}"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: AgentFlex/dist-bins/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish npm packages
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: AgentFlex
+        shell: bash
+    steps:
+      - name: Check out AgentFlex (packaging scripts)
+        uses: actions/checkout@v4
+        with:
+          path: AgentFlex
+
+      - name: Download built binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
+          path: AgentFlex/bins
+          merge-multiple: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Check tag matches Cargo.toml version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          cargo_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+          echo "tag: $tag_version, Cargo.toml: $cargo_version"
+          test "$tag_version" = "$cargo_version" || { echo "error: tag v$tag_version does not match Cargo.toml version $cargo_version"; exit 1; }
+
+      - name: Assemble npm packages
+        run: node scripts/build-npm.mjs --version "${GITHUB_REF_NAME#v}" --bin-dir bins
+
+      - name: Publish to npm
+        run: |
+          for pkg in agentflex agentflex-darwin-arm64 agentflex-darwin-x64 agentflex-linux-x64 agentflex-linux-arm64 agentflex-win32-x64 agentflex-win32-arm64; do
+            npm publish --provenance --access public "npm/dist/$pkg"
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
