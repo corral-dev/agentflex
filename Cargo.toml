@@ -1,0 +1,17 @@
+[package]
+name = "agentflex"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Animated, shareable card of your coding-agent week"
+repository = "https://github.com/corral-dev/agentflex"
+rust-version = "1.80"
+
+[dependencies]
+sesskit-stats = { path = "../SessKit/crates/sesskit-stats" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
