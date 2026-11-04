@@ -103,7 +103,7 @@ impl Drop for Guard {
 }
 
 pub enum Outcome {
-    Quit(Option<View>),
+    Quit(Option<Box<View>>),
     Failed(String),
 }
 
@@ -184,8 +184,8 @@ pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Sen
         if event::poll(wait)? {
             match event::read()? {
                 Event::Key(KeyEvent { code, modifiers, .. }) => match code {
-                    KeyCode::Char('q') | KeyCode::Esc => return Ok(Outcome::Quit(view)),
-                    KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => return Ok(Outcome::Quit(view)),
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(Outcome::Quit(view.map(Box::new))),
+                    KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => return Ok(Outcome::Quit(view.map(Box::new))),
                     KeyCode::Char('r') if view.is_some() && animate => {
                         idle_at = None;
                         reveal_at = Some(Instant::now());

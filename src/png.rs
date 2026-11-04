@@ -148,6 +148,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_card_character_has_a_glyph() {
+        use crate::stats::{CardStats, Period};
+        let mut st = CardStats { sessions: 9, tokens: 123_456_789, tokens_per_day: 1.7e7, peak_parallel: 3, ..CardStats::default() };
+        st.by_runtime = vec![("claude", 5), ("codex", 2), ("opencode", 1), ("pi", 1)];
+        st.heatmap[1][9] = 100.0;
+        let view = crate::card::build_view(&st, Period::Week, "Tue 09:30".into(), None);
+        let loading = crate::card::build_view(&CardStats::default(), Period::Week, String::new(), Some((3, 10)));
+        let mut frames = vec![crate::card::compose(&loading, None, Some(0.4), None)];
+        for t in [0.2, 0.6, 1.0, 1.6, 2.2, 2.9, 3.2, 3.4] {
+            frames.push(crate::card::compose(&view, Some(t), None, None));
+        }
+        frames.push(crate::card::compose(&view, None, None, Some(0.3)));
+        for g in &frames {
+            for c in g.iter().flatten() {
+                assert!(has_glyph(c.ch), "no glyph for {:?}", c.ch);
+            }
+        }
+    }
+
+    #[test]
     fn png_has_signature_size_and_valid_crc() {
         let grid = vec![vec![crate::card::Cell::default(); WIDTH]; HEIGHT];
         let data = encode(IMAGE_W, IMAGE_H, &render_rgb(&grid));

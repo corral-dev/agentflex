@@ -504,7 +504,7 @@ fn heat_color(view: &View, d: usize, h: usize, t: Option<f64>) -> &'static str {
         if t < reveal + POP && level > 0 {
             return if level >= 3 { GOLD_HI } else { HEAT[(level + 1).min(4)] };
         }
-        if is_peak && t < PEAK_START + PEAK_BLINK && t >= PEAK_START {
+        if is_peak && (PEAK_START..PEAK_START + PEAK_BLINK).contains(&t) {
             return if ((t - PEAK_START) / 0.1) as i64 % 2 == 0 { GOLD_HI } else { HEAT[level] };
         }
     }
@@ -551,17 +551,17 @@ fn draw_beams(grid: &mut Grid, t: Option<f64>) {
         }
         let travel = -BEAM_TRAIL + (WIDTH as f64 + 2.0 * BEAM_TRAIL) * ease_out((t - start) / BEAM_DUR);
         let head = if dir > 0 { travel } else { WIDTH as f64 - 1.0 - travel };
-        for x in 1..WIDTH - 1 {
+        for (x, slot) in grid[row].iter_mut().enumerate().take(WIDTH - 1).skip(1) {
             let behind = (head - x as f64) * dir as f64;
             if !(0.0..BEAM_TRAIL).contains(&behind) {
                 continue;
             }
             let fg = if behind < 1.0 { WHITE } else if behind < 4.0 { GOLD_HI } else { GOLD };
-            let cell = grid[row][x];
+            let cell = *slot;
             if cell.ch != ' ' {
-                grid[row][x] = Cell { fg, bold: true, rgb: None, ..cell };
+                *slot = Cell { fg, bold: true, rgb: None, ..cell };
             } else if behind < 6.0 {
-                grid[row][x] = Cell { ch: if behind < 2.0 { '━' } else { '─' }, fg, ..cell };
+                *slot = Cell { ch: if behind < 2.0 { '━' } else { '─' }, fg, ..cell };
             }
         }
     }
