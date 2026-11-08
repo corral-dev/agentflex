@@ -1,5 +1,7 @@
 # agentflex
 
+[![npm version](https://img.shields.io/npm/v/agentflex?color=cb3837)](https://www.npmjs.com/package/agentflex) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/corral-dev/agentflex/blob/main/LICENSE)
+
 **An animated card of your coding-agent week, in one command.**
 
 ![agentflex card animation (fictional data)](https://raw.githubusercontent.com/corral-dev/agentflex/main/docs/demo.gif)
@@ -45,6 +47,8 @@ Everything stays on your machine. The card shows totals only: no prompts, file n
 ## From the makers of Corral
 
 agentflex comes from [Corral](https://github.com/corral-dev/corral), a terminal home for all your coding-agent sessions: see who needs you, run agents side by side, and pick up from your phone. Corral users can also run `corral flex`.
+
+Burning tokens across multiple accounts? [subswap](https://github.com/x0c/subswap) checks live quotas and switches accounts in 1 second.
 
 ## License
 

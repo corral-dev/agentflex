@@ -1,0 +1,19 @@
+# PyPI binary distribution for `uvx agentflex` (AI/Python developers without Node).
+# maturin's `bin` binding compiles this same Rust crate and ships just the
+# binary plus a generated `agentflex` entry point; no Python source needed.
+# Wheels are built per platform by CI (mirroring scripts/build-npm.mjs) and
+# published to PyPI; users then run `uvx agentflex` with no confirmation prompt.
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "agentflex"
+version = "0.2.0" # keep in sync with Cargo.toml [package] version
+description = "Animated, shareable card of your coding-agent week"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+
+[tool.maturin]
+bindings = "bin"

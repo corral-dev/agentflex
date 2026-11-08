@@ -21,8 +21,10 @@ on:
   workflow_dispatch:
 
 # `id-token: write` is required for `npm publish --provenance` (Sigstore).
+# `contents: write` uploads the six prebuilt binaries to the tag's GitHub
+# release (Homebrew and curl installs download from there).
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -159,3 +161,20 @@ jobs:
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The tag release carries the six prebuilt binaries (Homebrew and
+      # curl installs download from there; npm alone is not enough).
+      # Created on demand so a rerun never fails on an existing release.
+      - name: Upload binaries to the GitHub release
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          mkdir -p release-assets
+          for f in bins/*; do
+            cp "$f" "release-assets/agentflex-$(basename "$f")"
+          done
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "agentflex ${tag#v}" --generate-notes
+          fi
+          gh release upload "$tag" release-assets/agentflex-* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

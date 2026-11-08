@@ -1,5 +1,9 @@
 # agentflex
 
+**语言：** [English](README.md) | 简体中文
+
+[![npm version](https://img.shields.io/npm/v/agentflex?color=cb3837)](https://www.npmjs.com/package/agentflex) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **一条命令，生成你这一周编程助手使用情况的动态卡片。**
 
 ![agentflex 卡片动画（虚构数据）](docs/demo.gif)
@@ -45,6 +49,8 @@ macOS（Apple 芯片、Intel）、Linux（x64、arm64）和 Windows（x64、arm6
 ## 来自 Corral 团队
 
 agentflex 出自 [Corral](https://github.com/corral-dev/corral)：一个在终端里集中管理所有编程助手会话的工具，能看到谁在等你回复、并排运行多个助手，还能在手机上接着做。Corral 用户也可以直接运行 `corral flex`。
+
+在多个账号之间烧 Token？用 [subswap](https://github.com/x0c/subswap) 1 秒查看实时额度并切换账号。
 
 ## 许可证
 
