@@ -1,11 +1,10 @@
 # Builds the agentflex Rust binary for six targets and publishes the npm
 # platform packages on version tags.
 #
-# Layout note: AgentFlex depends on sesskit-stats via
-# `path = "../SessKit/crates/sesskit-stats"`, so both repositories are
-# checked out side by side ($GITHUB_WORKSPACE/AgentFlex +
-# $GITHUB_WORKSPACE/SessKit) and every cargo step runs with
-# working-directory AgentFlex.
+# Layout note: sesskit-stats is a git dependency pinned by `rev` in
+# Cargo.toml, so the release builds exactly the reviewed SessKit commit.
+# AgentFlex is checked out under $GITHUB_WORKSPACE/AgentFlex and every cargo
+# step runs with working-directory AgentFlex.
 #
 # Linux choice: x86_64/aarch64-unknown-linux-musl targets produce fully
 # static binaries (musl libc linked in, no glibc dependency), so the same
@@ -70,12 +69,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: AgentFlex
-
-      - name: Check out SessKit (path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: x0c/sesskit
-          path: SessKit
 
       - name: Install musl tools (Linux static builds)
         if: endsWith(matrix.target, 'musl')

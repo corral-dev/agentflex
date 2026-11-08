@@ -8,7 +8,8 @@ repository = "https://github.com/corral-dev/agentflex"
 rust-version = "1.85"
 
 [dependencies]
-sesskit-stats = { path = "../SessKit/crates/sesskit-stats" }
+# Pinned SessKit commit; bump deliberately (AGENTS.md "Hard constraints").
+sesskit-stats = { git = "https://github.com/x0c/sesskit", rev = "a4da1ff6da42210a60d8233f219b39b3beea19ad" }
 crossterm = "0.28"
 flate2 = "1"
 serde_json = "1"

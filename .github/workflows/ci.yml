@@ -1,7 +1,7 @@
 # Continuous integration: build + test on all three OSes for pushes and PRs.
 # Tag pushes are excluded (the release workflow covers those).
-# Same side-by-side checkout as release.yml so the
-# `../SessKit/crates/sesskit-stats` path dependency resolves.
+# sesskit-stats is a git dependency pinned by `rev` in Cargo.toml, so Cargo
+# fetches the reviewed SessKit commit itself; no second checkout is needed.
 name: ci
 
 on:
@@ -30,12 +30,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: AgentFlex
-
-      - name: Check out SessKit (path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: x0c/sesskit
-          path: SessKit
 
       - name: Build
         run: cargo build
