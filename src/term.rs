@@ -15,6 +15,18 @@ use crate::i18n::{self, Lang};
 use crate::png;
 
 const FRAME: Duration = Duration::from_millis(33);
+const OSC8_CLOSE: &str = "\x1b]8;;\x1b\\";
+
+/// Bottom-border link cell range (start, end exclusive) for the visible URL text.
+fn link_bounds() -> (usize, usize) {
+    let n = card::REPO_URL.chars().count();
+    let url_x = WIDTH - 3 - (n + 2);
+    (url_x + 1, url_x + 1 + n)
+}
+
+fn osc8_open() -> String {
+    format!("\x1b]8;;{}\x1b\\", card::REPO_HREF)
+}
 
 fn color(cell: &Cell) -> Color {
     let (r, g, b) = cell.rgb.unwrap_or_else(|| png::hex(cell.fg));
@@ -60,10 +72,16 @@ impl Hint {
 /// Print a grid as true-color ANSI (or plain text) to stdout, e.g. after exit.
 pub fn print_static(grid: &Grid, colored: bool) -> io::Result<()> {
     let mut out = io::stdout().lock();
-    for row in grid {
-        for c in row {
+    let (ls, le) = link_bounds();
+    let open = osc8_open();
+    for (y, row) in grid.iter().enumerate() {
+        for (x, c) in row.iter().enumerate() {
             if c.ch == card::CONT {
                 continue;
+            }
+            let is_link = colored && y == HEIGHT - 1 && x >= ls && x < le;
+            if is_link && x == ls {
+                queue!(out, Print(&open))?;
             }
             if colored {
                 queue!(out, SetForegroundColor(color(c)), SetBackgroundColor(bg(c)))?;
@@ -73,6 +91,9 @@ pub fn print_static(grid: &Grid, colored: bool) -> io::Result<()> {
                 queue!(out, Print(c.ch), SetAttribute(Attribute::Reset))?;
             } else {
                 queue!(out, Print(c.ch))?;
+            }
+            if is_link && x + 1 == le {
+                queue!(out, Print(OSC8_CLOSE))?;
             }
         }
         if colored {
@@ -130,6 +151,10 @@ impl Screen {
             return out.flush();
         }
         let (ox, oy) = self.origin;
+        let (ls, le) = link_bounds();
+        let open = osc8_open();
+        let link_chars: Vec<char> = card::REPO_URL.chars().collect();
+        let mut link_open = false;
         for (y, row) in grid.iter().enumerate() {
             for (x, c) in row.iter().enumerate() {
                 if c.ch == card::CONT {
@@ -138,9 +163,27 @@ impl Screen {
                 if self.prev.as_ref().is_some_and(|p| p[y][x] == *c) {
                     continue;
                 }
+                // Only hyperlink cells that actually show the URL text (not the
+                // border-drawing phase where the footer is still `─`).
+                let wants_link = y == HEIGHT - 1
+                    && x >= ls
+                    && x < le
+                    && x - ls < link_chars.len()
+                    && c.ch == link_chars[x - ls];
+                if wants_link != link_open {
+                    if wants_link {
+                        queue!(out, Print(&open))?;
+                    } else {
+                        queue!(out, Print(OSC8_CLOSE))?;
+                    }
+                    link_open = wants_link;
+                }
                 queue!(out, MoveTo(ox + x as u16, oy + y as u16), SetForegroundColor(color(c)), SetBackgroundColor(bg(c)))?;
                 queue!(out, SetAttribute(if c.bold { Attribute::Bold } else { Attribute::NormalIntensity }), Print(c.ch))?;
             }
+        }
+        if link_open {
+            queue!(out, Print(OSC8_CLOSE))?;
         }
         queue!(out, SetAttribute(Attribute::Reset), MoveTo(ox, oy + HEIGHT as u16 + 1), SetBackgroundColor(rgb(card::PAGE)))?;
         let mut used = 0;

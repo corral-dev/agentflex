@@ -12,7 +12,9 @@ pub const HEIGHT: usize = 21;
 /// Grid cell that holds the right half of a double-width character. It
 /// occupies one terminal column but is never printed or drawn on its own.
 pub const CONT: char = '\0';
-pub const REPO_URL: &str = "github.com/corral-dev/corral";
+pub const REPO_URL: &str = "github.com/corral-dev/agentflex";
+/// Clickable target for the bottom-right footer (OSC 8 hyperlink in the terminal).
+pub const REPO_HREF: &str = "https://github.com/corral-dev/agentflex";
 
 pub const BG: &str = "#14110F";
 /// Page around the card: the PNG margins and the terminal stage.
