@@ -14,7 +14,8 @@ use crate::card::{self, Cell, Grid, View, HEIGHT, WIDTH};
 use crate::png;
 
 const FRAME: Duration = Duration::from_millis(33);
-const HINT: &str = "s save image · r replay · q quit";
+/// Key hint shown under the card: key in gold, label dim.
+const KEYS: [(&str, &str); 3] = [("s", "save image"), ("r", "replay"), ("q", "quit")];
 
 fn color(cell: &Cell) -> Color {
     let (r, g, b) = cell.rgb.unwrap_or_else(|| png::hex(cell.fg));
@@ -22,8 +23,38 @@ fn color(cell: &Cell) -> Color {
 }
 
 fn bg(cell: &Cell) -> Color {
-    let (r, g, b) = png::hex(cell.bg);
+    rgb(cell.bg)
+}
+
+fn rgb(hex: &str) -> Color {
+    let (r, g, b) = png::hex(hex);
     Color::Rgb { r, g, b }
+}
+
+/// The line under the card: the key hint, or a transient note (e.g. "Saved ...").
+enum Hint {
+    Keys,
+    Note(String),
+}
+
+impl Hint {
+    fn spans(&self) -> Vec<(&str, &'static str)> {
+        match self {
+            Hint::Keys => {
+                let mut out = Vec::new();
+                for (i, (key, label)) in KEYS.iter().enumerate() {
+                    if i > 0 {
+                        out.push(("  ·  ", card::FAINT));
+                    }
+                    out.push((*key, card::GOLD));
+                    out.push((" ", card::DIM));
+                    out.push((*label, card::DIM));
+                }
+                out
+            }
+            Hint::Note(text) => vec![(text.as_str(), card::DIM)],
+        }
+    }
 }
 
 /// Print a grid as true-color ANSI (or plain text) to stdout, e.g. after exit.
@@ -53,6 +84,8 @@ struct Screen {
     prev: Option<Grid>,
     origin: (u16, u16),
     small: bool,
+    /// Width of the last hint drawn, so a shorter one fully covers it.
+    hint_w: usize,
 }
 
 impl Screen {
@@ -63,15 +96,28 @@ impl Screen {
         let y = (h as usize).saturating_sub(HEIGHT + 2) / 2;
         self.origin = (x as u16, y as u16);
         self.prev = None;
-        execute!(io::stdout(), ResetColor, Clear(ClearType::All))
+        self.paint_stage(w, h)
     }
 
-    fn draw(&mut self, grid: &Grid, hint: &str) -> io::Result<()> {
+    /// Paint every cell with the page color so a light terminal theme never
+    /// frames the dark card in white. Spaces are written explicitly rather
+    /// than relying on background-color erase, which not every terminal honors.
+    fn paint_stage(&self, w: u16, h: u16) -> io::Result<()> {
+        let mut out = io::stdout().lock();
+        let blank = " ".repeat(w as usize);
+        queue!(out, ResetColor, Clear(ClearType::All), SetBackgroundColor(rgb(card::PAGE)))?;
+        for y in 0..h {
+            queue!(out, MoveTo(0, y), Print(&blank))?;
+        }
+        out.flush()
+    }
+
+    fn draw(&mut self, grid: &Grid, hint: &Hint) -> io::Result<()> {
         let mut out = io::stdout().lock();
         if self.small {
             if self.prev.is_none() {
                 let msg = format!("Enlarge the terminal to at least {}x{} to see the card", WIDTH, HEIGHT + 2);
-                queue!(out, MoveTo(0, 0), Print(msg))?;
+                queue!(out, MoveTo(0, 0), SetBackgroundColor(rgb(card::PAGE)), SetForegroundColor(rgb(card::DIM)), Print(msg))?;
                 self.prev = Some(grid.clone());
             }
             return out.flush();
@@ -86,8 +132,15 @@ impl Screen {
                 queue!(out, SetAttribute(if c.bold { Attribute::Bold } else { Attribute::NormalIntensity }), Print(c.ch))?;
             }
         }
-        queue!(out, ResetColor, SetAttribute(Attribute::Reset), MoveTo(ox, oy + HEIGHT as u16 + 1))?;
-        queue!(out, Clear(ClearType::UntilNewLine), SetForegroundColor(Color::DarkGrey), Print(hint), ResetColor)?;
+        queue!(out, SetAttribute(Attribute::Reset), MoveTo(ox, oy + HEIGHT as u16 + 1), SetBackgroundColor(rgb(card::PAGE)))?;
+        let mut used = 0;
+        for (text, fg) in hint.spans() {
+            queue!(out, SetForegroundColor(rgb(fg)), Print(text))?;
+            used += text.chars().count();
+        }
+        // Overwrite a longer previous hint with stage-colored blanks.
+        queue!(out, Print(" ".repeat(self.hint_w.max(WIDTH).saturating_sub(used))), ResetColor)?;
+        self.hint_w = used;
         self.prev = Some(grid.clone());
         out.flush()
     }
@@ -116,14 +169,14 @@ pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Sen
     terminal::enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen, Hide)?;
     let _guard = Guard;
-    let mut screen = Screen { prev: None, origin: (0, 0), small: false };
+    let mut screen = Screen { prev: None, origin: (0, 0), small: false, hint_w: 0 };
     screen.layout()?;
 
     let started = Instant::now();
     let mut view: Option<View> = None;
     let mut reveal_at: Option<Instant> = None;
     let mut idle_at: Option<Instant> = None;
-    let mut hint = HINT.to_string();
+    let mut hint = Hint::Keys;
     let mut hint_until: Option<Instant> = None;
 
     loop {
@@ -143,7 +196,7 @@ pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Sen
             }
         }
         if hint_until.is_some_and(|u| Instant::now() >= u) {
-            hint = HINT.to_string();
+            hint = Hint::Keys;
             hint_until = None;
         }
         // Compose the current frame and decide how long to sleep.
@@ -193,10 +246,10 @@ pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Sen
                     KeyCode::Char('s') => {
                         if let Some(v) = &view {
                             let final_grid = card::compose(v, None, None, None);
-                            hint = match png::write(&final_grid, std::path::Path::new(&png_name)) {
+                            hint = Hint::Note(match png::write(&final_grid, std::path::Path::new(&png_name)) {
                                 Ok(p) => format!("Saved {}", p.display()),
                                 Err(e) => format!("Could not save the image: {e}"),
-                            };
+                            });
                             hint_until = Some(Instant::now() + Duration::from_secs(4));
                         }
                     }

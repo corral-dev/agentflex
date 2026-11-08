@@ -11,12 +11,14 @@ pub const HEIGHT: usize = 19;
 pub const REPO_URL: &str = "github.com/corral-dev/corral";
 
 pub const BG: &str = "#14110F";
+/// Page around the card: the PNG margins and the terminal stage.
+pub const PAGE: &str = "#0C0A09";
 const BORDER_DIM: &str = "#3A332E";
 const BORDER: &str = "#6B5F55";
 const TEXT: &str = "#EDE6DE";
-const DIM: &str = "#8A817A";
-const FAINT: &str = "#4E4640";
-const GOLD: &str = "#D9A441";
+pub const DIM: &str = "#8A817A";
+pub const FAINT: &str = "#4E4640";
+pub const GOLD: &str = "#D9A441";
 const GOLD_HI: &str = "#FFD77A";
 const WHITE: &str = "#FFFFFF";
 const HERO_FROM: (u8, u8, u8) = (0xFF, 0xD7, 0x7A);

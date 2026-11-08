@@ -7,13 +7,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::card::{Grid, HEIGHT, WIDTH};
+use crate::card::{self, Grid, HEIGHT, WIDTH};
 
 pub const IMAGE_W: usize = 1200;
 pub const IMAGE_H: usize = 630;
 const CELL_W: usize = 16;
 const CELL_H: usize = 32;
-const PAGE: (u8, u8, u8) = (0x0C, 0x0A, 0x09);
 
 const FONT_JSON: &str = include_str!("../assets/spleen-16x32-subset.json");
 
@@ -75,8 +74,9 @@ fn mask(ch: char, bold: bool) -> [u16; CELL_H] {
 /// Raw RGB bytes of the whole image, card centered on the page color.
 pub fn render_rgb(grid: &Grid) -> Vec<u8> {
     let mut img = vec![0u8; IMAGE_W * IMAGE_H * 3];
+    let page = hex(card::PAGE);
     for px in img.chunks_exact_mut(3) {
-        px.copy_from_slice(&[PAGE.0, PAGE.1, PAGE.2]);
+        px.copy_from_slice(&[page.0, page.1, page.2]);
     }
     let left = (IMAGE_W - WIDTH * CELL_W) / 2;
     let top = (IMAGE_H - HEIGHT * CELL_H) / 2;
