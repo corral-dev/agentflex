@@ -9,7 +9,7 @@
 set -eu
 
 REPO="corral-dev/agentflex"
-VERSION="${AGENTFLEX_VERSION:-v0.2.0}"
+VERSION="${AGENTFLEX_VERSION:-v0.3.0}"
 DEST="${AGENTFLEX_BIN:-/tmp/agentflex}"
 
 os="$(uname -s)"; arch="$(uname -m)"
