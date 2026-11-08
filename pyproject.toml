@@ -9,7 +9,7 @@ build-backend = "maturin"
 
 [project]
 name = "agentflex"
-version = "0.3.0" # keep in sync with Cargo.toml [package] version
+version = "0.3.1" # keep in sync with Cargo.toml [package] version
 description = "Animated, shareable card of your coding-agent week"
 readme = "README.md"
 license = { text = "MIT" }
