@@ -14,3 +14,9 @@
 - `sesskit-stats` is a git dependency pinned to one reviewed SessKit commit (`rev` in `Cargo.toml`), so a SessKit change never alters a build or a card silently. Bump the `rev` deliberately and check the card values against the previous build; never track a branch. To build against a local, unpushed SessKit, override per command: `cargo build --config 'patch."https://github.com/x0c/sesskit".sesskit-stats.path="../SessKit/crates/sesskit-stats"'`; it rewrites the `sesskit-stats` entry in `Cargo.lock`, which must not be committed.
 - macOS, Linux and Windows (x64 and arm64) are supported targets.
 - Card UI, motion and image export are owned by the primary model; packaging and CI may be delegated.
+
+## Release
+
+- The version lives only in `Cargo.toml`; npm package versions are stamped from it. Commit `release: X.Y.Z`, then push an annotated `vX.Y.Z` tag to `github`: `.github/workflows/release.yml` builds the six targets on native runners, checks tag = `Cargo.toml` version and publishes the platform packages before the launcher (already published versions are skipped). A `workflow_dispatch` run builds everything without publishing; use it to prove runner labels before tagging.
+- After the run: create the GitHub Release with bilingual notes (English first), poll `npm view <pkg>@X.Y.Z` for all seven packages until they resolve (a fresh publish answers 404 for a few minutes), then verify `npx agentflex@latest` in an empty directory.
+- README demo (`docs/demo.gif`, `docs/card.png`): `uv run --no-project --with pillow python scripts/demo.py` from a tree that contains only committed or owned changes, since it renders with that tree's binary and fictional data.
