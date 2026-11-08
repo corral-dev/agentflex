@@ -9,7 +9,7 @@
 # Linux choice: x86_64/aarch64-unknown-linux-musl targets produce fully
 # static binaries (musl libc linked in, no glibc dependency), so the same
 # artifact runs on any distro regardless of the runner's glibc version.
-# Native runners are used for every target (macos-14 = arm64, macos-13 =
+# Native runners are used for every target (macos-15 = arm64, macos-15-intel =
 # x64, ubuntu-24.04-arm = arm64, windows-11-arm = arm64) instead of
 # cross-compilation, avoiding cross toolchains and emulation.
 name: release
@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             exe: agentflex
             asset: aarch64-apple-darwin

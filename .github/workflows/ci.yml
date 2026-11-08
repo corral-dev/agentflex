@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04, windows-latest]
+        os: [macos-15, ubuntu-24.04, windows-latest]
     defaults:
       run:
         working-directory: AgentFlex
