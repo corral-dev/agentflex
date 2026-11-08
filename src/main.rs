@@ -1,6 +1,7 @@
 //! agentflex: animated, shareable card of your coding-agent activity.
 
 mod card;
+mod i18n;
 mod png;
 mod stats;
 mod term;
@@ -33,16 +34,28 @@ fn local_start(now: f64, days: i64, offset: UtcOffset) -> f64 {
     (local.replace_time(time::Time::MIDNIGHT) - time::Duration::days(days - 1)).unix_timestamp() as f64
 }
 
-fn peak_label(at: Option<f64>, offset: UtcOffset) -> String {
+fn peak_label(at: Option<f64>, offset: UtcOffset, lang: i18n::Lang) -> String {
     let Some(at) = at else { return String::new() };
     let Ok(dt) = OffsetDateTime::from_unix_timestamp(at as i64) else { return String::new() };
-    let fmt = time::macros::format_description!("[weekday repr:short] [hour]:[minute]");
-    dt.to_offset(offset).format(&fmt).unwrap_or_default()
+    let dt = dt.to_offset(offset);
+    match lang {
+        i18n::Lang::En => {
+            let fmt = time::macros::format_description!("[weekday repr:short] [hour]:[minute]");
+            dt.format(&fmt).unwrap_or_default()
+        }
+        i18n::Lang::Zh => format!(
+            "{} {:02}:{:02}",
+            i18n::weekday(lang, dt.weekday().number_days_from_monday() as usize),
+            dt.hour(),
+            dt.minute()
+        ),
+    }
 }
 
 fn main() {
     // Must run before any thread exists (time's local-offset soundness rule).
     let offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
+    let lang = i18n::Lang::detect();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
     if has("--help") || has("-h") {
@@ -100,7 +113,7 @@ fn main() {
             println!("{out}");
             return;
         }
-        let view = card::build_view(&s, period, peak_label(s.peak_at, offset), None);
+        let view = card::build_view(&s, period, peak_label(s.peak_at, offset, lang), None, lang);
         let frame: Option<f64> = args.iter().position(|a| a == "--frame").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok());
         let grid = card::compose(&view, frame, None, None);
         if let Some(Some(path)) = png_path {
@@ -117,7 +130,7 @@ fn main() {
         return;
     }
 
-    let loading = card::build_view(&stats::CardStats::default(), period, String::new(), Some((0, -1)));
+    let loading = card::build_view(&stats::CardStats::default(), period, String::new(), Some((0, -1)), lang);
     let png_name = format!(
         "agentflex-{}.png",
         OffsetDateTime::from_unix_timestamp(now as i64)
@@ -131,10 +144,11 @@ fn main() {
         loading,
         move || {
             let s = load();
-            Ok(card::build_view(&s, period, peak_label(s.peak_at, offset), None))
+            Ok(card::build_view(&s, period, peak_label(s.peak_at, offset, lang), None, lang))
         },
         animate,
         png_name,
+        lang,
     );
     match result {
         Ok(term::Outcome::Quit(Some(view))) => {

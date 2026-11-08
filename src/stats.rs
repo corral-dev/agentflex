@@ -2,6 +2,7 @@
 
 use sesskit_stats::aggregate::{active_intervals, add_weekday_hours, peak_concurrency};
 use sesskit_stats::{Runtime, SessionStats};
+use crate::i18n::Lang;
 use time::UtcOffset;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,11 +21,14 @@ impl Period {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Period::Week => "last 7 days",
-            Period::Month => "last 30 days",
-            Period::All => "all history",
+    pub fn label(self, lang: Lang) -> &'static str {
+        match (self, lang) {
+            (Period::Week, Lang::En) => "last 7 days",
+            (Period::Month, Lang::En) => "last 30 days",
+            (Period::All, Lang::En) => "all history",
+            (Period::Week, Lang::Zh) => "最近 7 天",
+            (Period::Month, Lang::Zh) => "最近 30 天",
+            (Period::All, Lang::Zh) => "全部历史",
         }
     }
 

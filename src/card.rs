@@ -4,10 +4,14 @@
 //! `compose(view, None)` is the final frame. The terminal and the PNG export
 //! both draw these cells, so the shared image equals the last terminal frame.
 
+use crate::i18n::{self, Lang};
 use crate::stats::{runtime_color, runtime_name, CardStats, Period};
 
 pub const WIDTH: usize = 72;
 pub const HEIGHT: usize = 21;
+/// Grid cell that holds the right half of a double-width character. It
+/// occupies one terminal column but is never printed or drawn on its own.
+pub const CONT: char = '\0';
 pub const REPO_URL: &str = "github.com/corral-dev/corral";
 
 pub const BG: &str = "#14110F";
@@ -88,8 +92,9 @@ pub type Share = (String, &'static str, f64);
 
 #[derive(Clone, Debug)]
 pub struct View {
+    pub lang: Lang,
     pub title: &'static str,
-    pub period_label: &'static str,
+    pub period: Period,
     pub hero: String,
     pub stats: [(&'static str, f64, bool, String); 3], // label, value, compact, detail
     /// Agent share of sessions: name, color, fraction.
@@ -134,6 +139,45 @@ pub fn thousands(v: i64) -> String {
     }
 }
 
+/// Terminal and PNG cells a character occupies: two for CJK and full-width
+/// forms, one for everything else on the card.
+pub fn char_width(ch: char) -> usize {
+    let c = ch as u32;
+    let wide = (0x1100..=0x115F).contains(&c)
+        || (0x2E80..=0x303E).contains(&c)
+        || (0x3041..=0x33FF).contains(&c)
+        || (0x3400..=0x4DBF).contains(&c)
+        || (0x4E00..=0x9FFF).contains(&c)
+        || (0xA000..=0xA4CF).contains(&c)
+        || (0xAC00..=0xD7A3).contains(&c)
+        || (0xF900..=0xFAFF).contains(&c)
+        || (0xFE10..=0xFE19).contains(&c)
+        || (0xFE30..=0xFE6F).contains(&c)
+        || (0xFF00..=0xFF60).contains(&c)
+        || (0xFFE0..=0xFFE6).contains(&c)
+        || (0x20000..=0x3FFFD).contains(&c);
+    if wide { 2 } else { 1 }
+}
+
+pub fn text_width(text: &str) -> usize {
+    text.chars().map(char_width).sum()
+}
+
+/// Longest prefix that fits `max` cells, for hints in a narrow terminal.
+pub fn truncate_width(text: &str, max: usize) -> String {
+    let mut out = String::new();
+    let mut used = 0;
+    for ch in text.chars() {
+        let w = char_width(ch);
+        if used + w > max {
+            break;
+        }
+        out.push(ch);
+        used += w;
+    }
+    out
+}
+
 fn heat_levels(heat: &[[f64; 24]; 7]) -> [[u8; 24]; 7] {
     let peak = heat.iter().flatten().copied().fold(0.0, f64::max);
     let mut out = [[0u8; 24]; 7];
@@ -149,24 +193,30 @@ fn heat_levels(heat: &[[f64; 24]; 7]) -> [[u8; 24]; 7] {
     out
 }
 
-pub fn build_view(stats: &CardStats, period: Period, peak_label: String, progress: Option<(usize, i64)>) -> View {
+pub fn build_view(stats: &CardStats, period: Period, peak_label: String, progress: Option<(usize, i64)>, lang: Lang) -> View {
     let agents = stats.by_runtime.len();
     let total = stats.sessions.max(1) as f64;
+    let labels = i18n::stat_labels(lang);
     View {
+        lang,
         title: period.title(),
-        period_label: period.label(),
+        period,
         hero: compact(stats.tokens as f64),
         stats: [
-            ("SESSIONS", stats.sessions as f64, false, format!("{agents} agent{}", if agents == 1 { "" } else { "s" })),
-            ("TOKENS / DAY", stats.tokens_per_day, true, String::new()),
-            ("PEAK PARALLEL", stats.peak_parallel as f64, false, peak_label),
+            (labels[0], stats.sessions as f64, false, i18n::agents_detail(lang, agents)),
+            (labels[1], stats.tokens_per_day, true, String::new()),
+            (labels[2], stats.peak_parallel as f64, false, peak_label),
         ],
         shares: stats
             .by_runtime
             .iter()
-            .map(|(id, n)| (runtime_name(id).to_string(), runtime_color(id), *n as f64 / total))
+            .map(|(id, n)| {
+                let name = runtime_name(id);
+                let name = if name == "Other" { i18n::other_runtime(lang) } else { name };
+                (name.to_string(), runtime_color(id), *n as f64 / total)
+            })
             .collect(),
-        models: model_shares(&stats.by_model),
+        models: model_shares(&stats.by_model, lang),
         heat: heat_levels(&stats.heatmap),
         busiest: stats.busiest(),
         progress,
@@ -174,7 +224,7 @@ pub fn build_view(stats: &CardStats, period: Period, peak_label: String, progres
     }
 }
 
-fn model_shares(by_model: &[(String, i64)]) -> Vec<Share> {
+fn model_shares(by_model: &[(String, i64)], lang: Lang) -> Vec<Share> {
     let total: i64 = by_model.iter().map(|m| m.1).sum();
     if total <= 0 {
         return Vec::new();
@@ -183,11 +233,14 @@ fn model_shares(by_model: &[(String, i64)]) -> Vec<Share> {
         .iter()
         .take(MODEL_TOP)
         .zip(MODEL_COLORS)
-        .map(|((name, tokens), color)| (name.clone(), color, *tokens as f64 / total as f64))
+        .map(|((name, tokens), color)| {
+            let name = if name == "unknown" { i18n::unknown_model(lang) } else { name.as_str() };
+            (name.to_string(), color, *tokens as f64 / total as f64)
+        })
         .collect();
     let rest: i64 = by_model.iter().skip(MODEL_TOP).map(|m| m.1).sum();
     if rest > 0 {
-        out.push(("other".to_string(), MODEL_OTHER, rest as f64 / total as f64));
+        out.push((i18n::other_model(lang).to_string(), MODEL_OTHER, rest as f64 / total as f64));
     }
     out
 }
@@ -227,11 +280,21 @@ fn blank() -> Grid {
 }
 
 fn put(grid: &mut Grid, x: usize, y: usize, text: &str, fg: &'static str, bold: bool) {
-    for (i, ch) in text.chars().enumerate() {
-        if x + i < WIDTH && y < HEIGHT {
-            let bg = grid[y][x + i].bg;
-            grid[y][x + i] = Cell { ch, fg, bg, bold, rgb: None };
+    if y >= HEIGHT {
+        return;
+    }
+    let mut cx = x;
+    for ch in text.chars() {
+        let w = char_width(ch);
+        if cx + w > WIDTH {
+            break;
         }
+        let bg = grid[y][cx].bg;
+        grid[y][cx] = Cell { ch, fg, bg, bold, rgb: None };
+        if w == 2 {
+            grid[y][cx + 1] = Cell { ch: CONT, fg, bg, bold, rgb: None };
+        }
+        cx += w;
     }
 }
 
@@ -365,28 +428,33 @@ fn draw_border(grid: &mut Grid, t: Option<f64>, loading_t: Option<f64>) {
 }
 
 fn draw_title(grid: &mut Grid, view: &View, t: Option<f64>) {
-    let shown = match t {
+    let shown: String = match t {
         Some(t) if t < TITLE_START + TITLE_DUR => {
-            let n = (view.title.len() as f64 * clamp((t - TITLE_START) / TITLE_DUR)).ceil() as usize;
-            &view.title[..n.min(view.title.len())]
+            let n = (view.title.chars().count() as f64 * clamp((t - TITLE_START) / TITLE_DUR)).ceil() as usize;
+            view.title.chars().take(n.min(view.title.chars().count())).collect()
         }
-        _ => view.title,
+        _ => view.title.to_string(),
     };
-    put(grid, HERO_X, 1, shown, GOLD, true);
+    put(grid, HERO_X, 1, &shown, GOLD, true);
     let right = WIDTH - 3;
     if let Some((done, total)) = view.progress {
-        let line = if total < 0 { "scanning history".to_string() } else { format!("reading {} / {} sessions", thousands(done as i64), thousands(total)) };
-        put(grid, right - line.chars().count(), 1, &line, DIM, false);
+        let line = if total < 0 {
+            i18n::scanning_history(view.lang).to_string()
+        } else {
+            i18n::reading_sessions(view.lang, &thousands(done as i64), &thousands(total))
+        };
+        put(grid, right.saturating_sub(text_width(&line)), 1, &line, DIM, false);
     } else {
-        put(grid, right - view.period_label.len(), 1, view.period_label, DIM, false);
+        let label = view.period.label(view.lang);
+        put(grid, right.saturating_sub(text_width(label)), 1, label, DIM, false);
     }
 }
 
 fn draw_hero(grid: &mut Grid, view: &View, t: Option<f64>, loading_t: Option<f64>, idle_t: Option<f64>) {
     if view.empty && loading_t.is_none() {
-        put(grid, HERO_X, HERO_Y + 1, "No Claude Code, Codex, OpenCode or Pi sessions", TEXT, true);
-        let tail = format!("found in the {}.", view.period_label);
-        put(grid, HERO_X, HERO_Y + 2, &tail, DIM, false);
+        let lines = i18n::empty_lines(view.lang, view.period);
+        put(grid, HERO_X, HERO_Y + 1, &lines[0], TEXT, true);
+        put(grid, HERO_X, HERO_Y + 2, &lines[1], DIM, false);
         return;
     }
     let text: String = view.hero.clone();
@@ -467,8 +535,9 @@ fn draw_stats(grid: &mut Grid, view: &View, t: Option<f64>) {
             match t {
                 Some(t) if t < PEAK_START => {}
                 Some(t) if t < PEAK_START + PEAK_BLINK => {
-                    let n = (detail.len() as f64 * clamp((t - PEAK_START) / PEAK_BLINK)) as usize + 1;
-                    put(grid, x, 8, &detail[..n.min(detail.len())], GOLD, false);
+                    let n = (detail.chars().count() as f64 * clamp((t - PEAK_START) / PEAK_BLINK)) as usize + 1;
+                    let shown: String = detail.chars().take(n).collect();
+                    put(grid, x, 8, &shown, GOLD, false);
                 }
                 _ => put(grid, x, 8, detail, DIM, false),
             }
@@ -505,13 +574,14 @@ fn percent(frac: f64) -> String {
 /// stays on the bar) and shorten down to 6. Any remaining overflow shows `+N`.
 fn legend_names(shares: &[Share]) -> Vec<String> {
     let pcts: Vec<usize> = shares.iter().map(|s| percent(s.2).chars().count()).collect();
+    let name_width = |name: &[char]| name.iter().map(|c| char_width(*c)).sum::<usize>();
     let fit = |count: usize, floor: usize| -> Option<Vec<String>> {
         let mut names: Vec<Vec<char>> = shares[..count].iter().map(|s| s.0.chars().collect()).collect();
         let width = |names: &[Vec<char>]| -> usize {
-            names.iter().zip(&pcts).map(|(n, p)| 2 + n.len() + 1 + p).sum::<usize>() + 2 * names.len().saturating_sub(1)
+            names.iter().zip(&pcts).map(|(n, p)| 2 + name_width(n) + 1 + p).sum::<usize>() + 2 * names.len().saturating_sub(1)
         };
         while width(&names) > BAR_W {
-            let longest = names.iter_mut().filter(|n| n.len() > floor).max_by_key(|n| n.len())?;
+            let longest = names.iter_mut().filter(|n| name_width(n) > floor).max_by_key(|n| name_width(n))?;
             if longest.last() == Some(&'…') {
                 let at = longest.len() - 2;
                 longest.remove(at);
@@ -557,7 +627,7 @@ fn draw_shares(grid: &mut Grid, view: &View, y: usize, label: &str, shares: &[Sh
     let mut x = BAR_X;
     for (k, ((_, color, frac), name)) in shares.iter().zip(legend_names(shares)).enumerate() {
         let item = format!("{name} {}", percent(*frac));
-        let len = item.chars().count();
+        let len = text_width(&item);
         if x + 2 + len > BAR_X + BAR_W {
             put(grid, x, y + 1, &format!("+{}", shares.len() - k), DIM, false);
             break;
@@ -598,7 +668,7 @@ fn heat_color(view: &View, d: usize, h: usize, t: Option<f64>) -> &'static str {
 }
 
 fn draw_heatmap(grid: &mut Grid, view: &View, t: Option<f64>) {
-    put(grid, 3, HEAT_Y, "ACTIVITY", DIM, false);
+    put(grid, 3, HEAT_Y, i18n::activity_label(view.lang), DIM, false);
     for pair in 0..4 {
         let y = HEAT_Y + pair;
         let (top_d, bot_d) = (pair * 2, pair * 2 + 1);
@@ -616,11 +686,11 @@ fn draw_heatmap(grid: &mut Grid, view: &View, t: Option<f64>) {
     }
     put(grid, HEAT_X + 45, axis, "24h", FAINT, false);
     let side = HEAT_X + 50;
-    put(grid, side, HEAT_Y, "busiest", FAINT, false);
+    put(grid, side, HEAT_Y, i18n::busiest_label(view.lang), FAINT, false);
     if let (Some((d, h)), None) = (view.busiest, view.progress) {
         if t.is_none_or(|t| t >= PEAK_START) {
             put(grid, side, HEAT_Y + 1, "■", GOLD_HI, false);
-            put(grid, side + 2, HEAT_Y + 1, ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d], TEXT, false);
+            put(grid, side + 2, HEAT_Y + 1, i18n::weekday(view.lang, d), TEXT, false);
             put(grid, side + 2, HEAT_Y + 2, &format!("{h:02}h"), TEXT, false);
         }
     }
@@ -657,8 +727,8 @@ pub fn compose(view: &View, t: Option<f64>, loading_t: Option<f64>, idle_t: Opti
     draw_title(&mut grid, view, t);
     draw_hero(&mut grid, view, t, loading_t, idle_t);
     draw_stats(&mut grid, view, t);
-    draw_shares(&mut grid, view, AGENT_Y, "AGENTS", &view.shares, BAR_START, t);
-    draw_shares(&mut grid, view, MODEL_Y, "MODELS", &view.models, MODEL_START, t);
+    draw_shares(&mut grid, view, AGENT_Y, i18n::AGENTS_LABEL, &view.shares, BAR_START, t);
+    draw_shares(&mut grid, view, MODEL_Y, i18n::models_label(view.lang), &view.models, MODEL_START, t);
     draw_heatmap(&mut grid, view, t);
     draw_beams(&mut grid, t);
     grid
@@ -673,10 +743,13 @@ mod tests {
     use super::*;
 
     fn text(g: &Grid) -> String {
-        g.iter().map(|r| r.iter().map(|c| c.ch).collect::<String>()).collect::<Vec<_>>().join("\n")
+        g.iter()
+            .map(|r| r.iter().filter(|c| c.ch != CONT).map(|c| c.ch).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
-    fn sample() -> View {
+    fn sample_lang(lang: Lang) -> View {
         let mut s = CardStats { sessions: 266, tokens: 7_445_700_237, tokens_per_day: 1.06e9, peak_parallel: 13, ..CardStats::default() };
         s.by_runtime = vec![("opencode", 200), ("pi", 50), ("claude", 16)];
         s.by_model = vec![
@@ -687,7 +760,15 @@ mod tests {
             ("haiku-4.5".into(), 45_700_237),
         ];
         s.heatmap[4][11] = 3600.0;
-        build_view(&s, Period::Week, "Fri 11:55".into(), None)
+        let peak = match lang {
+            Lang::En => "Fri 11:55".to_string(),
+            Lang::Zh => "周五 11:55".to_string(),
+        };
+        build_view(&s, Period::Week, peak, None, lang)
+    }
+
+    fn sample() -> View {
+        sample_lang(Lang::En)
     }
 
     #[test]
@@ -729,6 +810,8 @@ mod tests {
         let short: Vec<Share> = vec![("opus-5.5".into(), MODEL_COLORS[0], 0.7), ("other".into(), MODEL_OTHER, 0.3)];
         assert_eq!(legend_names(&short), ["opus-5.5", "other"]);
         assert_eq!(percent(0.002), "<1%");
+        let zh: Vec<Share> = vec![("opus-5.5".into(), MODEL_COLORS[0], 0.7), ("其他".into(), MODEL_OTHER, 0.3)];
+        assert_eq!(legend_names(&zh), ["opus-5.5", "其他"]);
     }
 
     #[test]
@@ -738,11 +821,45 @@ mod tests {
 
     #[test]
     fn empty_period_explains_instead_of_zeros() {
-        let v = build_view(&CardStats::default(), Period::Week, String::new(), None);
+        let v = build_view(&CardStats::default(), Period::Week, String::new(), None, Lang::En);
         let t = text(&compose(&v, None, None, None));
         assert!(t.contains("No Claude Code, Codex, OpenCode or Pi sessions"));
         assert!(t.contains("found in the last 7 days."));
         assert!(!t.contains("tokens"));
+    }
+
+    #[test]
+    fn chinese_card_uses_natural_labels_and_wide_cells() {
+        let v = sample_lang(Lang::Zh);
+        let t = text(&compose(&v, None, None, None));
+        for want in [
+            "CODING WEEK",
+            "最近 7 天",
+            "会话数",
+            "日均 tokens",
+            "峰值并发",
+            "3 个 agent",
+            "周五 11:55",
+            "模型",
+            "活跃时段",
+            "最忙",
+            "周五",
+        ] {
+            assert!(t.contains(want), "missing {want}");
+        }
+        let row = &compose(&v, None, None, None)[6];
+        assert_eq!(row[STAT_X[0]].ch, '会');
+        assert_eq!(row[STAT_X[0] + 1].ch, CONT);
+        assert_eq!(row[STAT_X[0] + 2].ch, '话');
+        assert_eq!(text_width("会话数"), 6);
+    }
+
+    #[test]
+    fn chinese_empty_period_explains_instead_of_zeros() {
+        let v = build_view(&CardStats::default(), Period::Week, String::new(), None, Lang::Zh);
+        let t = text(&compose(&v, None, None, None));
+        assert!(t.contains("没有找到 Claude Code、Codex、OpenCode"));
+        assert!(t.contains("或 Pi 的会话记录。"));
     }
 
     #[test]
@@ -755,5 +872,13 @@ mod tests {
         assert_eq!(compact(36813.0), "36,813");
         assert_eq!(compact(7_445_700_237.0), "7.45B");
         assert_eq!(compact(52_100_000.0), "52.1M");
+    }
+
+    #[test]
+    fn text_width_counts_cjk_as_two_cells() {
+        assert_eq!(text_width("会话数"), 6);
+        assert_eq!(text_width("tokens"), 6);
+        assert_eq!(char_width('、'), 2);
+        assert_eq!(truncate_width("请把终端窗口调大", 5), "请把");
     }
 }

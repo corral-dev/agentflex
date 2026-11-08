@@ -15,6 +15,12 @@
 - macOS, Linux and Windows (x64 and arm64) are supported targets.
 - Card UI, motion and image export are owned by the primary model; packaging and CI may be delegated.
 
+## Localization
+
+- Every TUI and card string lives in `src/i18n.rs`. Detect the locale from `LC_ALL`, `LC_MESSAGES`, `LANG`, `LANGUAGE`, then the OS preferred language: a `zh` language gets `Lang::Zh`, every other language `Lang::En`. `CODING WEEK`, `tokens` and `AGENTS` stay English by owner decision (2026-11-08).
+- The terminal card and the PNG share one grid. A double-width character occupies a lead cell plus a `card::CONT` tail; the terminal, the plain-text printer and the PNG renderer must skip tails and never print them.
+- Chinese PNG glyphs come from the embedded OFL-1.1 Fusion Pixel 12px subset. After changing Chinese copy, run `python3 scripts/build-cjk-subset.py <zh_hans.bdf>` and keep `assets/FUSION-PIXEL-LICENSE.txt`; the tests fail on a missing glyph.
+
 ## Release
 
 - The version lives only in `Cargo.toml`; npm package versions are stamped from it. Commit `release: X.Y.Z`, then push an annotated `vX.Y.Z` tag to `github`: `.github/workflows/release.yml` builds the six targets on native runners, checks tag = `Cargo.toml` version and publishes the platform packages before the launcher (already published versions are skipped). A `workflow_dispatch` run builds everything without publishing; use it to prove runner labels before tagging.

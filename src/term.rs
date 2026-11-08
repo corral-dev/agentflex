@@ -11,11 +11,10 @@ use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlt
 use crossterm::{execute, queue};
 
 use crate::card::{self, Cell, Grid, View, HEIGHT, WIDTH};
+use crate::i18n::{self, Lang};
 use crate::png;
 
 const FRAME: Duration = Duration::from_millis(33);
-/// Key hint shown under the card: key in gold, label dim.
-const KEYS: [(&str, &str); 3] = [("s", "save image"), ("r", "replay"), ("q", "quit")];
 
 fn color(cell: &Cell) -> Color {
     let (r, g, b) = cell.rgb.unwrap_or_else(|| png::hex(cell.fg));
@@ -38,11 +37,12 @@ enum Hint {
 }
 
 impl Hint {
-    fn spans(&self) -> Vec<(&str, &'static str)> {
+    fn spans(&self, lang: Lang) -> Vec<(&str, &'static str)> {
         match self {
             Hint::Keys => {
                 let mut out = Vec::new();
-                for (i, (key, label)) in KEYS.iter().enumerate() {
+                let keys = i18n::keys(lang);
+                for (i, (key, label)) in keys.iter().enumerate() {
                     if i > 0 {
                         out.push(("  ·  ", card::FAINT));
                     }
@@ -62,6 +62,9 @@ pub fn print_static(grid: &Grid, colored: bool) -> io::Result<()> {
     let mut out = io::stdout().lock();
     for row in grid {
         for c in row {
+            if c.ch == card::CONT {
+                continue;
+            }
             if colored {
                 queue!(out, SetForegroundColor(color(c)), SetBackgroundColor(bg(c)))?;
                 if c.bold {
@@ -86,6 +89,8 @@ struct Screen {
     small: bool,
     /// Width of the last hint drawn, so a shorter one fully covers it.
     hint_w: usize,
+    lang: Lang,
+    cols: usize,
 }
 
 impl Screen {
@@ -95,6 +100,7 @@ impl Screen {
         let x = (w as usize).saturating_sub(WIDTH) / 2;
         let y = (h as usize).saturating_sub(HEIGHT + 2) / 2;
         self.origin = (x as u16, y as u16);
+        self.cols = w as usize;
         self.prev = None;
         self.paint_stage(w, h)
     }
@@ -116,7 +122,8 @@ impl Screen {
         let mut out = io::stdout().lock();
         if self.small {
             if self.prev.is_none() {
-                let msg = format!("Enlarge the terminal to at least {}x{} to see the card", WIDTH, HEIGHT + 2);
+                let msg = i18n::small_terminal(self.lang, WIDTH, HEIGHT + 2);
+                let msg = card::truncate_width(&msg, self.cols);
                 queue!(out, MoveTo(0, 0), SetBackgroundColor(rgb(card::PAGE)), SetForegroundColor(rgb(card::DIM)), Print(msg))?;
                 self.prev = Some(grid.clone());
             }
@@ -125,6 +132,9 @@ impl Screen {
         let (ox, oy) = self.origin;
         for (y, row) in grid.iter().enumerate() {
             for (x, c) in row.iter().enumerate() {
+                if c.ch == card::CONT {
+                    continue;
+                }
                 if self.prev.as_ref().is_some_and(|p| p[y][x] == *c) {
                     continue;
                 }
@@ -134,9 +144,9 @@ impl Screen {
         }
         queue!(out, SetAttribute(Attribute::Reset), MoveTo(ox, oy + HEIGHT as u16 + 1), SetBackgroundColor(rgb(card::PAGE)))?;
         let mut used = 0;
-        for (text, fg) in hint.spans() {
+        for (text, fg) in hint.spans(self.lang) {
             queue!(out, SetForegroundColor(rgb(fg)), Print(text))?;
-            used += text.chars().count();
+            used += card::text_width(text);
         }
         // Overwrite a longer previous hint with stage-colored blanks.
         queue!(out, Print(" ".repeat(self.hint_w.max(WIDTH).saturating_sub(used))), ResetColor)?;
@@ -161,7 +171,7 @@ pub enum Outcome {
 }
 
 /// Play the card. `load` runs on a worker thread and returns the final view.
-pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Send + 'static, animate: bool, png_name: String) -> io::Result<Outcome> {
+pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Send + 'static, animate: bool, png_name: String, lang: Lang) -> io::Result<Outcome> {
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(load());
@@ -169,7 +179,7 @@ pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Sen
     terminal::enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen, Hide)?;
     let _guard = Guard;
-    let mut screen = Screen { prev: None, origin: (0, 0), small: false, hint_w: 0 };
+    let mut screen = Screen { prev: None, origin: (0, 0), small: false, hint_w: 0, lang, cols: 0 };
     screen.layout()?;
 
     let started = Instant::now();
@@ -247,8 +257,8 @@ pub fn run(loading_view: View, load: impl FnOnce() -> Result<View, String> + Sen
                         if let Some(v) = &view {
                             let final_grid = card::compose(v, None, None, None);
                             hint = Hint::Note(match png::write(&final_grid, std::path::Path::new(&png_name)) {
-                                Ok(p) => format!("Saved {}", p.display()),
-                                Err(e) => format!("Could not save the image: {e}"),
+                                Ok(p) => i18n::saved(lang, &p.display().to_string()),
+                                Err(e) => i18n::save_failed(lang, &e.to_string()),
                             });
                             hint_until = Some(Instant::now() + Duration::from_secs(4));
                         }

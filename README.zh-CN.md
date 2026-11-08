@@ -34,6 +34,15 @@ npx agentflex --json         # 以 JSON 输出数据
 npx agentflex --no-anim      # 不播放动画，直接显示最终卡片
 ```
 
+## 语言
+
+卡片跟随终端语言环境。中文环境（`zh_CN`、`zh-Hans` 等）下，卡片、加载提示、按键提示和导出的图片都显示简体中文；其他语言保持英文。`CODING WEEK`、`tokens`、`AGENTS` 是卡片的固定用语，保留英文。
+
+```bash
+LANG=zh_CN.UTF-8 npx agentflex   # 强制中文
+LANG=en_US.UTF-8 npx agentflex   # 强制英文
+```
+
 ## 快
 
 在重度使用的机器上（约 900 MB 历史），默认 7 天的卡片不到 1 秒就统计完：多核并行读取，只读统计周期内的部分，只解析需要的字段。解析引擎是 [SessKit](https://github.com/x0c/sesskit) 的原生 `sesskit-stats`，并与 SessKit 的参考实现逐会话核对过。
@@ -54,4 +63,4 @@ agentflex 出自 [Corral](https://github.com/corral-dev/corral)：一个在终�
 
 ## 许可证
 
-MIT。PNG 导出内嵌了 [Spleen](https://github.com/fcambus/spleen) 点阵字体的子集（BSD-2-Clause，见 `assets/SPLEEN-LICENSE.txt`）。
+MIT。PNG 导出内嵌了 [Spleen](https://github.com/fcambus/spleen)（BSD-2-Clause）和 [Fusion Pixel 缝合像素字体](https://github.com/TakWolf/fusion-pixel-font)（OFL-1.1）点阵字体的子集，许可证见 `assets/`。

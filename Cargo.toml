@@ -13,6 +13,7 @@ sesskit-stats = { git = "https://github.com/x0c/sesskit", rev = "d8be617a15a1fa7
 crossterm = "0.28"
 flate2 = "1"
 serde_json = "1"
+sys-locale = "0.3"
 time = { version = "0.3", features = ["local-offset", "formatting", "macros"] }
 
 [profile.release]
