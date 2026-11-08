@@ -7,7 +7,7 @@
 use crate::stats::{runtime_color, runtime_name, CardStats, Period};
 
 pub const WIDTH: usize = 72;
-pub const HEIGHT: usize = 19;
+pub const HEIGHT: usize = 21;
 pub const REPO_URL: &str = "github.com/corral-dev/corral";
 
 pub const BG: &str = "#14110F";
@@ -24,12 +24,18 @@ const WHITE: &str = "#FFFFFF";
 const HERO_FROM: (u8, u8, u8) = (0xFF, 0xD7, 0x7A);
 const HERO_TO: (u8, u8, u8) = (0xF0, 0x56, 0x3A);
 const HEAT: [&str; 5] = ["#262019", "#4A2A1E", "#7A2E1C", "#B83A1E", "#E8762B"];
+/// Top three models follow the hero gradient; the rest share one grey segment.
+const MODEL_COLORS: [&str; 3] = ["#FFD77A", "#F59E4B", "#E5533D"];
+const MODEL_OTHER: &str = "#6B5F55";
+const MODEL_TOP: usize = 3;
 
 const STAT_X: [usize; 3] = [3, 26, 49];
 const BAR_X: usize = 13;
 const BAR_W: usize = 56;
+const AGENT_Y: usize = 10;
+const MODEL_Y: usize = 12;
 const HEAT_X: usize = 13;
-const HEAT_Y: usize = 13;
+const HEAT_Y: usize = 15;
 const HERO_X: usize = 3;
 const HERO_Y: usize = 2;
 
@@ -46,12 +52,13 @@ const NUM_DUR: f64 = 1.1;
 const FLASH: f64 = 0.15;
 const BAR_START: f64 = 1.4;
 const BAR_DUR: f64 = 0.8;
+const MODEL_START: f64 = 1.65;
 const HEAT_START: f64 = 1.8;
 const HEAT_SPAN: f64 = 1.2;
 const POP: f64 = 0.1;
 const PEAK_START: f64 = 2.8;
 const PEAK_BLINK: f64 = 0.6;
-const BEAMS: [(usize, f64, i32); 2] = [(7, 3.1, 1), (14, 3.25, -1)];
+const BEAMS: [(usize, f64, i32); 2] = [(7, 3.1, 1), (HEAT_Y + 1, 3.25, -1)];
 const BEAM_DUR: f64 = 0.55;
 const BEAM_TRAIL: f64 = 12.0;
 pub const REVEAL_END: f64 = 3.8;
@@ -76,13 +83,19 @@ impl Default for Cell {
 
 pub type Grid = Vec<Vec<Cell>>;
 
+/// One bar segment and legend item: name, color, fraction of the bar.
+pub type Share = (String, &'static str, f64);
+
 #[derive(Clone, Debug)]
 pub struct View {
     pub title: &'static str,
     pub period_label: &'static str,
     pub hero: String,
     pub stats: [(&'static str, f64, bool, String); 3], // label, value, compact, detail
-    pub shares: Vec<(&'static str, &'static str, f64)>, // name, color, fraction
+    /// Agent share of sessions: name, color, fraction.
+    pub shares: Vec<Share>,
+    /// Model share of tokens: top models plus "other".
+    pub models: Vec<Share>,
     pub heat: [[u8; 24]; 7],
     pub busiest: Option<(usize, usize)>,
     /// (done, total) while reading; total < 0 while scanning.
@@ -151,13 +164,32 @@ pub fn build_view(stats: &CardStats, period: Period, peak_label: String, progres
         shares: stats
             .by_runtime
             .iter()
-            .map(|(id, n)| (runtime_name(id), runtime_color(id), *n as f64 / total))
+            .map(|(id, n)| (runtime_name(id).to_string(), runtime_color(id), *n as f64 / total))
             .collect(),
+        models: model_shares(&stats.by_model),
         heat: heat_levels(&stats.heatmap),
         busiest: stats.busiest(),
         progress,
         empty: progress.is_none() && stats.sessions == 0,
     }
+}
+
+fn model_shares(by_model: &[(String, i64)]) -> Vec<Share> {
+    let total: i64 = by_model.iter().map(|m| m.1).sum();
+    if total <= 0 {
+        return Vec::new();
+    }
+    let mut out: Vec<Share> = by_model
+        .iter()
+        .take(MODEL_TOP)
+        .zip(MODEL_COLORS)
+        .map(|((name, tokens), color)| (name.clone(), color, *tokens as f64 / total as f64))
+        .collect();
+    let rest: i64 = by_model.iter().skip(MODEL_TOP).map(|m| m.1).sum();
+    if rest > 0 {
+        out.push(("other".to_string(), MODEL_OTHER, rest as f64 / total as f64));
+    }
+    out
 }
 
 // ------------------------------------------------------------- helpers
@@ -446,8 +478,8 @@ fn draw_stats(grid: &mut Grid, view: &View, t: Option<f64>) {
     }
 }
 
-fn share_widths(view: &View) -> Vec<usize> {
-    let mut w: Vec<usize> = view.shares.iter().map(|s| ((s.2 * BAR_W as f64).round() as usize).max(1)).collect();
+fn share_widths(shares: &[Share]) -> Vec<usize> {
+    let mut w: Vec<usize> = shares.iter().map(|s| ((s.2 * BAR_W as f64).round() as usize).max(1)).collect();
     while w.iter().sum::<usize>() > BAR_W {
         let i = w.iter().enumerate().max_by_key(|(_, v)| **v).map(|(i, _)| i).unwrap();
         w[i] -= 1;
@@ -459,45 +491,85 @@ fn share_widths(view: &View) -> Vec<usize> {
     w
 }
 
-fn draw_agents(grid: &mut Grid, view: &View, t: Option<f64>) {
-    put(grid, 3, 10, "AGENTS", DIM, false);
-    if view.progress.is_some() || view.shares.is_empty() {
-        put(grid, BAR_X, 10, &"─".repeat(BAR_W), FAINT, false);
+fn percent(frac: f64) -> String {
+    if frac > 0.0 && frac < 0.005 {
+        "<1%".into()
+    } else {
+        format!("{:.0}%", frac * 100.0)
+    }
+}
+
+/// Legend names that fit the bar width (`● name pct` items two cells apart):
+/// shorten the longest names with `…` down to 10 characters; if that is not
+/// enough, leave the trailing "other" item out of the legend (its grey segment
+/// stays on the bar) and shorten down to 6. Any remaining overflow shows `+N`.
+fn legend_names(shares: &[Share]) -> Vec<String> {
+    let pcts: Vec<usize> = shares.iter().map(|s| percent(s.2).chars().count()).collect();
+    let fit = |count: usize, floor: usize| -> Option<Vec<String>> {
+        let mut names: Vec<Vec<char>> = shares[..count].iter().map(|s| s.0.chars().collect()).collect();
+        let width = |names: &[Vec<char>]| -> usize {
+            names.iter().zip(&pcts).map(|(n, p)| 2 + n.len() + 1 + p).sum::<usize>() + 2 * names.len().saturating_sub(1)
+        };
+        while width(&names) > BAR_W {
+            let longest = names.iter_mut().filter(|n| n.len() > floor).max_by_key(|n| n.len())?;
+            if longest.last() == Some(&'…') {
+                let at = longest.len() - 2;
+                longest.remove(at);
+            } else {
+                let keep = longest.len() - 2;
+                longest.truncate(keep);
+                longest.push('…');
+            }
+        }
+        Some(names.into_iter().map(|n| n.into_iter().collect()).collect())
+    };
+    let has_other = shares.last().is_some_and(|s| s.1 == MODEL_OTHER);
+    fit(shares.len(), 10)
+        .or_else(|| has_other.then(|| fit(shares.len() - 1, 6)).flatten())
+        .unwrap_or_else(|| shares.iter().map(|s| s.0.clone()).collect())
+}
+
+/// A labelled share bar that grows from `start`, with its legend on the next row.
+fn draw_shares(grid: &mut Grid, view: &View, y: usize, label: &str, shares: &[Share], start: f64, t: Option<f64>) {
+    put(grid, 3, y, label, DIM, false);
+    if view.progress.is_some() || shares.is_empty() {
+        put(grid, BAR_X, y, &"─".repeat(BAR_W), FAINT, false);
         return;
     }
     let mut colors: Vec<&'static str> = Vec::new();
-    for (s, w) in view.shares.iter().zip(share_widths(view)) {
+    for (s, w) in shares.iter().zip(share_widths(shares)) {
         colors.extend(std::iter::repeat_n(s.1, w));
     }
     let grow = match t {
         None => BAR_W as f64,
-        Some(t) => BAR_W as f64 * ease_out((t - BAR_START) / BAR_DUR),
+        Some(t) => BAR_W as f64 * ease_out((t - start) / BAR_DUR),
     };
     for i in 0..BAR_W {
         let cell = if (i as f64) < grow.floor() {
             Cell { ch: '█', fg: colors[i], bg: BG, bold: false, rgb: None }
-        } else if i == grow.floor() as usize && grow < BAR_W as f64 && t.is_some_and(|t| t >= BAR_START) {
+        } else if i == grow.floor() as usize && grow < BAR_W as f64 && t.is_some_and(|t| t >= start) {
             Cell { ch: '▌', fg: WHITE, bg: BG, bold: false, rgb: None }
         } else {
             Cell { ch: '─', fg: FAINT, bg: BG, bold: false, rgb: None }
         };
-        grid[10][BAR_X + i] = cell;
+        grid[y][BAR_X + i] = cell;
     }
     let mut x = BAR_X;
-    for (k, (name, color, frac)) in view.shares.iter().enumerate() {
-        let item = format!("{name} {:.0}%", frac * 100.0);
-        if x + 2 + item.len() > BAR_X + BAR_W {
-            put(grid, x, 11, &format!("+{}", view.shares.len() - k), DIM, false);
+    for (k, ((_, color, frac), name)) in shares.iter().zip(legend_names(shares)).enumerate() {
+        let item = format!("{name} {}", percent(*frac));
+        let len = item.chars().count();
+        if x + 2 + len > BAR_X + BAR_W {
+            put(grid, x, y + 1, &format!("+{}", shares.len() - k), DIM, false);
             break;
         }
-        let appear = BAR_START + 0.2 + 0.15 * k as f64;
+        let appear = start + 0.2 + 0.15 * k as f64;
         if t.is_some_and(|t| t < appear) {
             break;
         }
         let fresh = t.is_some_and(|t| t < appear + 0.12);
-        put(grid, x, 11, "●", color, false);
-        put(grid, x + 2, 11, &item, if fresh { DIM } else { TEXT }, false);
-        x += item.len() + 4;
+        put(grid, x, y + 1, "●", color, false);
+        put(grid, x + 2, y + 1, &item, if fresh { DIM } else { TEXT }, false);
+        x += len + 4;
     }
 }
 
@@ -585,7 +657,8 @@ pub fn compose(view: &View, t: Option<f64>, loading_t: Option<f64>, idle_t: Opti
     draw_title(&mut grid, view, t);
     draw_hero(&mut grid, view, t, loading_t, idle_t);
     draw_stats(&mut grid, view, t);
-    draw_agents(&mut grid, view, t);
+    draw_shares(&mut grid, view, AGENT_Y, "AGENTS", &view.shares, BAR_START, t);
+    draw_shares(&mut grid, view, MODEL_Y, "MODELS", &view.models, MODEL_START, t);
     draw_heatmap(&mut grid, view, t);
     draw_beams(&mut grid, t);
     grid
@@ -606,6 +679,13 @@ mod tests {
     fn sample() -> View {
         let mut s = CardStats { sessions: 266, tokens: 7_445_700_237, tokens_per_day: 1.06e9, peak_parallel: 13, ..CardStats::default() };
         s.by_runtime = vec![("opencode", 200), ("pi", 50), ("claude", 16)];
+        s.by_model = vec![
+            ("muse-spark-1.3-contributor".into(), 4_000_000_000),
+            ("opus-5.5".into(), 2_000_000_000),
+            ("gpt-6.1-sol".into(), 1_000_000_000),
+            ("deepseek-v4".into(), 400_000_000),
+            ("haiku-4.5".into(), 45_700_237),
+        ];
         s.heatmap[4][11] = 3600.0;
         build_view(&s, Period::Week, "Fri 11:55".into(), None)
     }
@@ -613,7 +693,7 @@ mod tests {
     #[test]
     fn final_frame_has_values_and_repo_and_no_removed_items() {
         let t = text(&compose(&sample(), None, None, None));
-        for want in ["CODING WEEK", "last 7 days", "266", "1.06B", "13", "Fri 11:55", "OpenCode", REPO_URL, "tokens"] {
+        for want in ["CODING WEEK", "last 7 days", "266", "1.06B", "13", "Fri 11:55", "OpenCode", "MODELS", "muse-spark", "opus-5.5 27%", "gpt-6.1-sol 13%", REPO_URL, "tokens"] {
             assert!(t.contains(want), "missing {want}");
         }
         for gone in ["TOOL CALLS", "Mon-Sun", "without token data", "CORRAL", "2026"] {
@@ -630,6 +710,25 @@ mod tests {
             assert_eq!(g.len(), HEIGHT);
             assert!(g.iter().all(|r| r.len() == WIDTH));
         }
+    }
+
+    #[test]
+    fn legend_truncates_long_model_names_to_fit() {
+        let shares: Vec<Share> = vec![
+            ("muse-spark-1.3-contributor-preview".into(), MODEL_COLORS[0], 0.6),
+            ("opus-5.5".into(), MODEL_COLORS[1], 0.2),
+            ("gpt-6.1-sol".into(), MODEL_COLORS[2], 0.15),
+            ("other".into(), MODEL_OTHER, 0.002),
+        ];
+        let names = legend_names(&shares);
+        assert!(names[0].starts_with("muse-spark") && names[0].ends_with('…'), "{names:?}");
+        assert_eq!(&names[1..], ["opus-5.5", "gpt-6.1-sol"], "other leaves the legend before versions are cut");
+        let width: usize = names.iter().zip(&shares).map(|(n, s)| 3 + n.chars().count() + percent(s.2).len()).sum::<usize>() + 2 * (names.len() - 1);
+        assert!(width <= BAR_W, "{width}");
+        // Short names keep every item, "other" included.
+        let short: Vec<Share> = vec![("opus-5.5".into(), MODEL_COLORS[0], 0.7), ("other".into(), MODEL_OTHER, 0.3)];
+        assert_eq!(legend_names(&short), ["opus-5.5", "other"]);
+        assert_eq!(percent(0.002), "<1%");
     }
 
     #[test]

@@ -78,7 +78,8 @@ def write_codex(home: str, cwd: str, sid: str, span: tuple[float, float], rng: r
     d = os.path.join(home, ".codex", "sessions", f"{day:%Y}", f"{day:%m}", f"{day:%d}")
     os.makedirs(d, exist_ok=True)
     rows = [{"type": "session_meta", "timestamp": iso(t), "payload": {"id": sid, "cwd": cwd, "thread_source": "user"}},
-            {"type": "event_msg", "timestamp": iso(t), "payload": {"type": "user_message", "message": "Add tests"}}]
+            {"type": "event_msg", "timestamp": iso(t), "payload": {"type": "user_message", "message": "Add tests"}},
+            {"type": "turn_context", "timestamp": iso(t), "payload": {"model": "gpt-terra"}}]
     i = 0
     while t < end:
         t += rng.randint(30, 150)
@@ -130,13 +131,14 @@ def write_opencode(home: str, sessions: list[tuple[str, str, tuple[float, float]
         "CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, data TEXT);")
     for sid, cwd, (t, end) in sessions:
         db.execute("INSERT INTO session VALUES (?,?,?,NULL,NULL,?,?)", (sid, cwd, "demo", int(t * 1000), int(end * 1000)))
+        model = "glm" if rng.random() < 0.6 else "qwen-coder"
         i = 0
         db.execute("INSERT INTO message VALUES (?,?,?,?)",
                    (f"{sid}_u", sid, int(t * 1000), json.dumps({"role": "user"})))
         while t < end:
             t += rng.randint(20, 90)
             i += 1
-            data = {"role": "assistant", "modelID": "glm",
+            data = {"role": "assistant", "modelID": model,
                     "tokens": {"input": rng.randint(2_000, 9_000), "output": rng.randint(200, 1_500), "reasoning": 0,
                                "cache": {"read": rng.randint(20_000, 90_000), "write": 0}}}
             db.execute("INSERT INTO message VALUES (?,?,?,?)", (f"{sid}_{i}", sid, int(t * 1000), json.dumps(data)))

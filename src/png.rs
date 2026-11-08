@@ -12,19 +12,25 @@ use crate::card::{self, Grid, HEIGHT, WIDTH};
 pub const IMAGE_W: usize = 1200;
 pub const IMAGE_H: usize = 630;
 const CELL_W: usize = 16;
-const CELL_H: usize = 32;
+/// Spleen glyph height; the image draws 28-row cells so 21 card rows fit 630 px.
+const GLYPH_H: usize = 32;
+const CELL_H: usize = 28;
+/// Glyph rows dropped from the top (blank padding for every text glyph except a
+/// few that shift down instead, e.g. `/`, brackets).
+const CROP_TOP: usize = GLYPH_H - CELL_H;
+const _: () = assert!(HEIGHT * CELL_H <= IMAGE_H && WIDTH * CELL_W <= IMAGE_W, "card must fit the image");
 
 const FONT_JSON: &str = include_str!("../assets/spleen-16x32-subset.json");
 
-fn font() -> &'static HashMap<char, [u16; CELL_H]> {
-    static FONT: OnceLock<HashMap<char, [u16; CELL_H]>> = OnceLock::new();
+fn font() -> &'static HashMap<char, [u16; GLYPH_H]> {
+    static FONT: OnceLock<HashMap<char, [u16; GLYPH_H]>> = OnceLock::new();
     FONT.get_or_init(|| {
         let v: serde_json::Value = serde_json::from_str(FONT_JSON).expect("embedded font");
         let mut out = HashMap::new();
         if let Some(glyphs) = v["glyphs"].as_object() {
             for (k, hex) in glyphs {
                 let (Some(ch), Some(hex)) = (k.chars().next(), hex.as_str()) else { continue };
-                let mut rows = [0u16; CELL_H];
+                let mut rows = [0u16; GLYPH_H];
                 for (i, row) in rows.iter_mut().enumerate() {
                     *row = u16::from_str_radix(hex.get(i * 4..i * 4 + 4).unwrap_or("0000"), 16).unwrap_or(0);
                 }
@@ -58,11 +64,29 @@ pub fn has_glyph(ch: char) -> bool {
     block_mask(ch).is_some() || font().contains_key(&ch)
 }
 
+/// Fit a 32-row glyph into a 28-row cell: drop the top padding; a text glyph
+/// inked in that padding moves down as far as its bottom allows. Box-drawing
+/// and block glyphs keep their rows so lines stay joined across cells.
+fn crop(glyph: &[u16; GLYPH_H], ch: char) -> [u16; CELL_H] {
+    let first = glyph.iter().position(|r| *r != 0).unwrap_or(GLYPH_H);
+    let last = glyph.iter().rposition(|r| *r != 0).unwrap_or(0);
+    let line_art = ('\u{2500}'..='\u{259F}').contains(&ch);
+    let room = GLYPH_H - 1 - last.min(GLYPH_H - 1);
+    let shift = if line_art { 0 } else { CROP_TOP.saturating_sub(first).min(room) };
+    let mut out = [0u16; CELL_H];
+    for (y, row) in out.iter_mut().enumerate() {
+        let src = y + CROP_TOP - shift;
+        *row = glyph[src];
+    }
+    out
+}
+
 fn mask(ch: char, bold: bool) -> [u16; CELL_H] {
     if let Some(m) = block_mask(ch) {
         return m;
     }
-    let mut rows = font().get(&ch).or_else(|| font().get(&'?')).copied().unwrap_or([0; CELL_H]);
+    let glyph = font().get(&ch).or_else(|| font().get(&'?')).copied().unwrap_or([0; GLYPH_H]);
+    let mut rows = crop(&glyph, ch);
     if bold && ch != ' ' {
         for r in rows.iter_mut() {
             *r |= *r >> 1;
@@ -152,6 +176,7 @@ mod tests {
         use crate::stats::{CardStats, Period};
         let mut st = CardStats { sessions: 9, tokens: 123_456_789, tokens_per_day: 1.7e7, peak_parallel: 3, ..CardStats::default() };
         st.by_runtime = vec![("claude", 5), ("codex", 2), ("opencode", 1), ("pi", 1)];
+        st.by_model = vec![("opus-5.5".into(), 90_000_000), ("gpt-6.1-sol".into(), 30_000_000), ("unknown".into(), 3_456_789)];
         st.heatmap[1][9] = 100.0;
         let view = crate::card::build_view(&st, Period::Week, "Tue 09:30".into(), None);
         let loading = crate::card::build_view(&CardStats::default(), Period::Week, String::new(), Some((3, 10)));
@@ -164,6 +189,17 @@ mod tests {
             for c in g.iter().flatten() {
                 assert!(has_glyph(c.ch), "no glyph for {:?}", c.ch);
             }
+        }
+    }
+
+    #[test]
+    fn cropping_keeps_every_text_glyph_whole() {
+        for (ch, glyph) in font() {
+            if ('\u{2500}'..='\u{259F}').contains(ch) {
+                continue;
+            }
+            let ink = |rows: &[u16]| rows.iter().map(|r| r.count_ones()).sum::<u32>();
+            assert_eq!(ink(&crop(glyph, *ch)), ink(glyph), "glyph {ch:?} lost ink");
         }
     }
 

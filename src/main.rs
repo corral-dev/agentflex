@@ -93,6 +93,7 @@ fn main() {
                 "peak_parallel": s.peak_parallel,
                 "peak_at": s.peak_at,
                 "by_runtime": s.by_runtime.iter().map(|(k, v)| (k.to_string(), *v)).collect::<std::collections::BTreeMap<_, _>>(),
+                "by_model": s.by_model.iter().map(|(name, tokens)| serde_json::json!({"model": name, "tokens": tokens})).collect::<Vec<_>>(),
                 "heatmap_active_seconds": s.heatmap,
                 "elapsed_s": s.elapsed,
             });

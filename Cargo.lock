@@ -435,7 +435,7 @@ dependencies = [
 [[package]]
 name = "sesskit-stats"
 version = "0.1.0"
-source = "git+https://github.com/x0c/sesskit?rev=a4da1ff6da42210a60d8233f219b39b3beea19ad#a4da1ff6da42210a60d8233f219b39b3beea19ad"
+source = "git+https://github.com/x0c/sesskit?rev=d8be617a15a1fa7a213c257d6e85959bd0fc4512#d8be617a15a1fa7a213c257d6e85959bd0fc4512"
 dependencies = [
  "memchr",
  "rayon",
