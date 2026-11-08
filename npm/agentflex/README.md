@@ -32,6 +32,15 @@ npx agentflex --json         # print the numbers as JSON
 npx agentflex --no-anim      # final card without animation
 ```
 
+## Language
+
+The card follows your locale. A Chinese locale (`zh_CN`, `zh-Hans`, …) shows the terminal card, loading state, key hints and exported PNG in Simplified Chinese; every other language keeps the English card. `CODING WEEK`, `tokens` and `AGENTS` stay in English as the card's own vocabulary.
+
+```bash
+LANG=zh_CN.UTF-8 npx agentflex   # force the Chinese card
+LANG=en_US.UTF-8 npx agentflex   # force English
+```
+
 ## Fast
 
 The default 7-day card is computed in well under a second on a heavy-use machine (about 900 MB of history): histories are read in parallel, pruned to the period, and only the fields that matter are decoded. The parsing engine is [SessKit](https://github.com/x0c/sesskit)'s native `sesskit-stats` crate, checked session by session against SessKit's reference implementation.
@@ -52,4 +61,4 @@ Burning tokens across multiple accounts? [subswap](https://github.com/x0c/subswa
 
 ## License
 
-MIT. The PNG export embeds a subset of the [Spleen](https://github.com/fcambus/spleen) bitmap font (BSD-2-Clause, see https://github.com/corral-dev/agentflex/blob/main/assets/SPLEEN-LICENSE.txt).
+MIT. The PNG export embeds subsets of the [Spleen](https://github.com/fcambus/spleen) (BSD-2-Clause) and [Fusion Pixel](https://github.com/TakWolf/fusion-pixel-font) (OFL-1.1) bitmap fonts; licenses are in [assets/](https://github.com/corral-dev/agentflex/blob/main/assets/).
