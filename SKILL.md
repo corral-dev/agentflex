@@ -5,7 +5,7 @@ description: Show the user's coding-agent week as an animated terminal card (ses
 
 # agentflex
 
-Animated, shareable card of the local coding-agent activity. No install, no account, nothing uploaded: it reads the local histories of Claude Code, Codex, OpenCode and Pi and aggregates the last 7 days.
+Animated, shareable card of the local coding-agent activity. No install, no account, nothing uploaded: it reads the local histories of Claude Code, Codex, OpenCode, Pi and Google Antigravity and aggregates the last 7 days.
 
 ## Run
 

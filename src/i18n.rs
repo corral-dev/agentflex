@@ -132,15 +132,15 @@ pub fn weekday(lang: Lang, monday_index: usize) -> &'static str {
 pub fn empty_lines(lang: Lang, period: Period) -> [String; 2] {
     match lang {
         Lang::En => [
-            "No Claude Code, Codex, OpenCode or Pi sessions".to_string(),
+            "No Claude Code, Codex, OpenCode, Pi or Antigravity".to_string(),
             match period {
-                Period::Week => "found in the last 7 days.",
-                Period::Month => "found in the last 30 days.",
-                Period::All => "found anywhere in your history.",
+                Period::Week => "sessions found in the last 7 days.",
+                Period::Month => "sessions found in the last 30 days.",
+                Period::All => "sessions found anywhere in your history.",
             }
             .to_string(),
         ],
-        Lang::Zh => ["没有找到 Claude Code、Codex、OpenCode".to_string(), "或 Pi 的会话记录。".to_string()],
+        Lang::Zh => ["没有找到 Claude Code、Codex、OpenCode、".to_string(), "Pi 或 Antigravity 的会话记录。".to_string()],
     }
 }
 

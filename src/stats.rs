@@ -117,6 +117,7 @@ pub fn runtime_name(id: &str) -> &'static str {
         "opencode" => "OpenCode",
         "pi" => "Pi",
         "cursor" => "Cursor",
+        "antigravity" => "Antigravity",
         _ => "Other",
     }
 }
@@ -129,22 +130,36 @@ pub fn runtime_color(id: &str) -> &'static str {
         "opencode" => "#34D399",
         "pi" => "#FBBF24",
         "cursor" => "#A78BFA",
+        "antigravity" => "#22D3EE",
         _ => "#8A817A",
     }
 }
 
 /// Short display name for a native model string (card design §10.7): drop a
-/// provider prefix, a bracket suffix, a date suffix and a leading `claude-`;
-/// a trailing `-N-M` version reads `-N.M`. Display only; grouping by the
-/// result merges spellings of one model.
+/// provider prefix, a bracket suffix, a trailing ` (...)` effort suffix, a date
+/// suffix and a leading `claude-`; internal whitespace normalizes to `-` and a
+/// trailing `-N-M` version reads `-N.M`. Display only; grouping by the result
+/// merges spellings of one model.
 pub fn model_display(raw: Option<&str>) -> String {
     let Some(raw) = raw.map(str::trim).filter(|m| !m.is_empty()) else { return "unknown".into() };
     let mut name = raw.rsplit('/').next().unwrap_or(raw).to_ascii_lowercase();
     if let Some(i) = name.find('[') {
         name.truncate(i);
     }
+    let mut trimmed = name.trim().to_string();
+    while trimmed.ends_with(')') {
+        let Some(i) = trimmed.rfind('(') else { break };
+        let prefix = trimmed[..i].trim_end();
+        if prefix.is_empty() {
+            break;
+        }
+        trimmed.truncate(prefix.len());
+    }
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    let parts: Vec<&str> = name.split('-').collect();
+    let parts: Vec<&str> = trimmed
+        .split(|c: char| c == '-' || c.is_ascii_whitespace())
+        .filter(|p| !p.is_empty())
+        .collect();
     let mut keep = parts.len();
     if keep > 1 && parts[keep - 1].len() == 8 && digits(parts[keep - 1]) {
         keep -= 1; // -YYYYMMDD
@@ -169,6 +184,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn runtime_labels_include_antigravity() {
+        assert_eq!(runtime_name("antigravity"), "Antigravity");
+        assert_eq!(runtime_color("antigravity"), "#22D3EE");
+    }
+
+    #[test]
     fn model_display_shortens_known_spellings() {
         assert_eq!(model_display(Some("claude-opus-5-5")), "opus-5.5");
         assert_eq!(model_display(Some("claude-opus-5-5[1m]")), "opus-5.5");
@@ -177,6 +198,10 @@ mod tests {
         assert_eq!(model_display(Some("gpt-6.1-sol")), "gpt-6.1-sol");
         assert_eq!(model_display(Some("opencode-go/muse-spark-1.3-contributor")), "muse-spark-1.3-contributor");
         assert_eq!(model_display(Some("deepseek-v4")), "deepseek-v4");
+        assert_eq!(model_display(Some("Gemini 4 Carbon (High)")), "gemini-4-carbon");
+        assert_eq!(model_display(Some("Gemini 4 Hydrogen (XHigh)")), "gemini-4-hydrogen");
+        assert_eq!(model_display(Some("Claude Opus 5.5 (High)")), "opus-5.5");
+        assert_eq!(model_display(Some("Claude Sonnet 4 6 (Thinking) (Medium)")), "sonnet-4.6");
         assert_eq!(model_display(Some("  ")), "unknown");
         assert_eq!(model_display(None), "unknown");
     }

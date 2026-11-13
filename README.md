@@ -12,7 +12,7 @@
 npx agentflex
 ```
 
-No install, no account, no upload. It reads the local histories of Claude Code, Codex, OpenCode and Pi, adds up the last 7 days, and plays the card in your terminal. Press `s` to save a 1200×630 PNG for posting, `r` to replay, `q` to quit.
+No install, no account, no upload. It reads the local histories of Claude Code, Codex, OpenCode, Pi and Google Antigravity, adds up the last 7 days, and plays the card in your terminal. Press `s` to save a 1200×630 PNG for posting, `r` to replay, `q` to quit.
 
 Also works with `pnpm dlx agentflex` and `bunx agentflex`.
 
@@ -20,7 +20,7 @@ Also works with `pnpm dlx agentflex` and `bunx agentflex`.
 
 - **Tokens** for the period, as each assistant recorded them (cache reads included).
 - **Sessions**, **tokens per day** and **peak parallel sessions** (the most agent sessions active at the same moment).
-- **Agent share** across Claude Code, Codex, OpenCode and Pi (by sessions).
+- **Agent share** across Claude Code, Codex, OpenCode, Pi and Google Antigravity (by sessions).
 - **Top models** by their share of your tokens, read from each recorded reply.
 - **Activity** by weekday and hour, with your busiest hour.
 

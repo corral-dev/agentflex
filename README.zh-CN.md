@@ -12,7 +12,7 @@
 npx agentflex
 ```
 
-不用安装，不用注册，不上传任何数据。它读取本机 Claude Code、Codex、OpenCode 和 Pi 的历史记录，汇总最近 7 天，在终端里播放卡片。按 `s` 保存 1200×630 的 PNG 用来分享，`r` 重播，`q` 退出。
+不用安装，不用注册，不上传任何数据。它读取本机 Claude Code、Codex、OpenCode、Pi 和 Google Antigravity 的历史记录，汇总最近 7 天，在终端里播放卡片。按 `s` 保存 1200×630 的 PNG 用来分享，`r` 重播，`q` 退出。
 
 也可以用 `pnpm dlx agentflex` 或 `bunx agentflex` 运行。
 
@@ -20,7 +20,7 @@ npx agentflex
 
 - **Token 总量**：各助手自己记录的数，包含缓存读取。
 - **会话数**、**每天 token** 和**最高并行会话数**（同一时刻同时在跑的会话最多有几个）。
-- **助手占比**：Claude Code、Codex、OpenCode、Pi 各占多少会话。
+- **助手占比**：Claude Code、Codex、OpenCode、Pi、Google Antigravity 各占多少会话。
 - **模型排行**：用得最多的模型各占多少 token，按每条回复记录的模型统计。
 - **活跃热力图**：按星期和小时排布，并标出最忙的时段。
 

@@ -9,7 +9,7 @@ rust-version = "1.85"
 
 [dependencies]
 # Pinned SessKit commit; bump deliberately (AGENTS.md "Hard constraints").
-sesskit-stats = { git = "https://github.com/x0c/sesskit", rev = "d8be617a15a1fa7a213c257d6e85959bd0fc4512" }
+sesskit-stats = { git = "https://github.com/x0c/sesskit", rev = "3507a8e0f4da1b08735343bd00421d51a1d70468" }
 crossterm = "0.28"
 flate2 = "1"
 serde_json = "1"

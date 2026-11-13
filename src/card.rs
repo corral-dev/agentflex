@@ -825,8 +825,8 @@ mod tests {
     fn empty_period_explains_instead_of_zeros() {
         let v = build_view(&CardStats::default(), Period::Week, String::new(), None, Lang::En);
         let t = text(&compose(&v, None, None, None));
-        assert!(t.contains("No Claude Code, Codex, OpenCode or Pi sessions"));
-        assert!(t.contains("found in the last 7 days."));
+        assert!(t.contains("No Claude Code, Codex, OpenCode, Pi or Antigravity"));
+        assert!(t.contains("sessions found in the last 7 days."));
         assert!(!t.contains("tokens"));
     }
 
@@ -860,8 +860,8 @@ mod tests {
     fn chinese_empty_period_explains_instead_of_zeros() {
         let v = build_view(&CardStats::default(), Period::Week, String::new(), None, Lang::Zh);
         let t = text(&compose(&v, None, None, None));
-        assert!(t.contains("没有找到 Claude Code、Codex、OpenCode"));
-        assert!(t.contains("或 Pi 的会话记录。"));
+        assert!(t.contains("没有找到 Claude Code、Codex、OpenCode、"));
+        assert!(t.contains("Pi 或 Antigravity 的会话记录。"));
     }
 
     #[test]

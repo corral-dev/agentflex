@@ -26,7 +26,7 @@ Usage: agentflex [--month | --all] [--png PATH | --json] [--no-anim]
   --frame T    with --png: render the frame T seconds into the animation
   --version    print the version
 
-Reads Claude Code, Codex, OpenCode and Pi histories on this machine. Nothing is uploaded.
+Reads Claude Code, Codex, OpenCode, Pi and Google Antigravity histories on this machine. Nothing is uploaded.
 ";
 
 fn local_start(now: f64, days: i64, offset: UtcOffset) -> f64 {
