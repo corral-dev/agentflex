@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agentflex"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "crossterm",
  "flate2",
@@ -436,7 +436,7 @@ dependencies = [
 [[package]]
 name = "sesskit-stats"
 version = "0.1.0"
-source = "git+https://github.com/x0c/sesskit?rev=3507a8e0f4da1b08735343bd00421d51a1d70468#3507a8e0f4da1b08735343bd00421d51a1d70468"
+source = "git+https://github.com/x0c/sesskit?rev=329b23371ab8cc8e421de2d2c455471590e434b9#329b23371ab8cc8e421de2d2c455471590e434b9"
 dependencies = [
  "memchr",
  "rayon",

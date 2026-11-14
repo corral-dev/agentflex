@@ -23,6 +23,6 @@
 
 ## Release
 
-- The version lives only in `Cargo.toml`; npm package versions are stamped from it. Commit `release: X.Y.Z`, then push an annotated `vX.Y.Z` tag to `github`: `.github/workflows/release.yml` builds the six targets on native runners, checks tag = `Cargo.toml` version and publishes the platform packages before the launcher (already published versions are skipped). A `workflow_dispatch` run builds everything without publishing; use it to prove runner labels before tagging.
+- Release bumps update `Cargo.toml`, `Cargo.lock`, `pyproject.toml` and `scripts/flex.sh`; npm package versions are stamped from `Cargo.toml`. Commit `release: X.Y.Z`, then push an annotated `vX.Y.Z` tag to `github`: `.github/workflows/release.yml` builds the six targets on native runners, checks tag = `Cargo.toml` version and publishes the platform packages before the launcher (already published versions are skipped). A `workflow_dispatch` run builds everything without publishing; use it to prove runner labels before tagging.
 - After the run: create the GitHub Release with bilingual notes (English first), poll `npm view <pkg>@X.Y.Z` for all seven packages until they resolve (a fresh publish answers 404 for a few minutes), then verify `npx agentflex@latest` in an empty directory.
 - README demo (`docs/demo.gif`, `docs/card.png`): `uv run --no-project --with pillow python scripts/demo.py` from a tree that contains only committed or owned changes, since it renders with that tree's binary and fictional data.

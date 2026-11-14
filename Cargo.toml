@@ -1,6 +1,6 @@
 [package]
 name = "agentflex"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 license = "MIT"
 description = "Animated, shareable card of your coding-agent week"
@@ -9,7 +9,7 @@ rust-version = "1.85"
 
 [dependencies]
 # Pinned SessKit commit; bump deliberately (AGENTS.md "Hard constraints").
-sesskit-stats = { git = "https://github.com/x0c/sesskit", rev = "3507a8e0f4da1b08735343bd00421d51a1d70468" }
+sesskit-stats = { git = "https://github.com/x0c/sesskit", rev = "329b23371ab8cc8e421de2d2c455471590e434b9" }
 crossterm = "0.28"
 flate2 = "1"
 serde_json = "1"
