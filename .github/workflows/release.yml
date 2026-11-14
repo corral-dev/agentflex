@@ -144,6 +144,25 @@ jobs:
       - name: Assemble npm packages
         run: node scripts/build-npm.mjs --version "${GITHUB_REF_NAME#v}" --bin-dir bins
 
+      # The tag release carries the six prebuilt binaries (Homebrew and
+      # curl installs download from there; npm alone is not enough).
+      # Upload before npm publish so an npm auth failure never leaves
+      # flex.sh or Homebrew without release binaries; created on demand so
+      # a rerun never fails on an existing release.
+      - name: Upload binaries to the GitHub release
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          mkdir -p release-assets
+          for f in bins/*; do
+            cp "$f" "release-assets/agentflex-$(basename "$f")"
+          done
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "agentflex ${tag#v}" --generate-notes
+          fi
+          gh release upload "$tag" release-assets/agentflex-* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       # Platform packages first, the launcher last, so the launcher never points
       # at versions that are not on the registry. Versions already published
       # (for example by an interrupted run) are skipped, so reruns are safe.
@@ -161,20 +180,3 @@ jobs:
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # The tag release carries the six prebuilt binaries (Homebrew and
-      # curl installs download from there; npm alone is not enough).
-      # Created on demand so a rerun never fails on an existing release.
-      - name: Upload binaries to the GitHub release
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          mkdir -p release-assets
-          for f in bins/*; do
-            cp "$f" "release-assets/agentflex-$(basename "$f")"
-          done
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --title "agentflex ${tag#v}" --generate-notes
-          fi
-          gh release upload "$tag" release-assets/agentflex-* --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
