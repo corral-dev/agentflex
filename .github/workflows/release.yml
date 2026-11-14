@@ -19,8 +19,13 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing release tag (e.g. v0.3.2) to publish to npm from its GitHub Release binaries"
+        required: false
+        type: string
 
-# `id-token: write` is required for `npm publish --provenance` (Sigstore).
+# `id-token: write` is required for npm OIDC Trusted Publishing and provenance (Sigstore).
 # `contents: write` uploads the six prebuilt binaries to the tag's GitHub
 # release (Homebrew and curl installs download from there).
 permissions:
@@ -30,6 +35,7 @@ permissions:
 jobs:
   build:
     name: build (${{ matrix.target }})
+    if: ${{ !inputs.release_tag }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -109,7 +115,11 @@ jobs:
   publish:
     name: publish npm packages
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      always() && (
+        (startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && needs.build.result == 'skipped')
+      )
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -119,30 +129,68 @@ jobs:
       - name: Check out AgentFlex (packaging scripts)
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           path: AgentFlex
 
       - name: Download built binaries
+        if: ${{ !inputs.release_tag }}
         uses: actions/download-artifact@v4
         with:
           pattern: bin-*
           path: AgentFlex/bins
           merge-multiple: true
 
+      - name: Download binaries from existing GitHub release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p bins release-dl
+          gh release download "$RELEASE_TAG" --dir release-dl --pattern "agentflex-*"
+          for f in release-dl/agentflex-*; do
+            base="$(basename "$f")"
+            target_name="${base#agentflex-}"
+            cp "$f" "bins/$target_name"
+            case "$target_name" in
+              *.exe) ;;
+              *) chmod +x "bins/$target_name" ;;
+            esac
+          done
+          ls -la bins
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Ensure npm supports OIDC trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
 
       - name: Check tag matches Cargo.toml version
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          tag_version="${GITHUB_REF_NAME#v}"
+          tag="${RELEASE_TAG:-$GITHUB_REF_NAME}"
+          case "$tag" in
+            v*) ;;
+            *) echo "error: release_tag '$tag' must start with v"; exit 1 ;;
+          esac
+          tag_version="${tag#v}"
           cargo_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
           echo "tag: $tag_version, Cargo.toml: $cargo_version"
           test "$tag_version" = "$cargo_version" || { echo "error: tag v$tag_version does not match Cargo.toml version $cargo_version"; exit 1; }
 
       - name: Assemble npm packages
-        run: node scripts/build-npm.mjs --version "${GITHUB_REF_NAME#v}" --bin-dir bins
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          tag="${RELEASE_TAG:-$GITHUB_REF_NAME}"
+          node scripts/build-npm.mjs --version "${tag#v}" --bin-dir bins
 
       # The tag release carries the six prebuilt binaries (Homebrew and
       # curl installs download from there; npm alone is not enough).
@@ -150,6 +198,7 @@ jobs:
       # flex.sh or Homebrew without release binaries; created on demand so
       # a rerun never fails on an existing release.
       - name: Upload binaries to the GitHub release
+        if: ${{ !inputs.release_tag }}
         run: |
           tag="${GITHUB_REF_NAME}"
           mkdir -p release-assets
@@ -168,15 +217,17 @@ jobs:
       # (for example by an interrupted run) are skipped, so reruns are safe.
       # Windows packages are named `windows-*`: names containing `win32` are
       # rejected by npm's spam detection (verified 2026-11-04).
+      # Published via npm OIDC Trusted Publishing (do not set NODE_AUTH_TOKEN).
       - name: Publish to npm
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          tag="${RELEASE_TAG:-$GITHUB_REF_NAME}"
+          version="${tag#v}"
           for pkg in agentflex-darwin-arm64 agentflex-darwin-x64 agentflex-linux-x64 agentflex-linux-arm64 agentflex-windows-x64 agentflex-windows-arm64 agentflex; do
             if npm view "$pkg@$version" version >/dev/null 2>&1; then
               echo "skip $pkg@$version (already published)"
               continue
             fi
-            npm publish --provenance --access public "npm/dist/$pkg"
+            npm publish --access public "npm/dist/$pkg"
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
